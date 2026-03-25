@@ -1,0 +1,1617 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ARIA — Implementation Bible</title>
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --bg2: #111118;
+    --bg3: #18181f;
+    --border: rgba(255,255,255,0.08);
+    --border2: rgba(255,255,255,0.14);
+    --text: #e8e8f0;
+    --text2: #9898b0;
+    --text3: #5a5a70;
+    --purple: #7c6cf7;
+    --purple2: #a99df7;
+    --teal: #2dd4bf;
+    --teal2: #5eead4;
+    --amber: #f59e0b;
+    --amber2: #fcd34d;
+    --coral: #f87171;
+    --coral2: #fca5a5;
+    --green: #4ade80;
+    --blue: #60a5fa;
+    --pink: #f472b6;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.7;
+    font-size: 15px;
+  }
+
+  /* HERO */
+  .hero {
+    background: linear-gradient(135deg, #0a0a1a 0%, #12101f 50%, #0a1220 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 80px 40px 60px;
+    position: relative;
+    overflow: hidden;
+  }
+  .hero::before {
+    content: '';
+    position: absolute;
+    top: -200px; left: 50%;
+    transform: translateX(-50%);
+    width: 800px; height: 500px;
+    background: radial-gradient(ellipse, rgba(124,108,247,0.12) 0%, transparent 70%);
+    pointer-events: none;
+  }
+  .hero-inner { max-width: 900px; margin: 0 auto; position: relative; }
+  .hero-badge {
+    display: inline-flex; align-items: center; gap: 8px;
+    background: rgba(124,108,247,0.12);
+    border: 1px solid rgba(124,108,247,0.3);
+    border-radius: 100px;
+    padding: 6px 16px;
+    font-size: 12px; font-weight: 600;
+    color: var(--purple2);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 24px;
+  }
+  .hero h1 {
+    font-size: clamp(42px, 6vw, 72px);
+    font-weight: 800;
+    letter-spacing: -2px;
+    line-height: 1;
+    margin-bottom: 8px;
+  }
+  .hero h1 .grad {
+    background: linear-gradient(135deg, var(--purple2), var(--teal2), var(--amber2));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .hero-subtitle {
+    font-size: 20px;
+    color: var(--text2);
+    margin: 16px 0 32px;
+    max-width: 600px;
+  }
+  .hero-stats {
+    display: flex; gap: 32px; flex-wrap: wrap;
+  }
+  .stat { display: flex; flex-direction: column; }
+  .stat-val { font-size: 28px; font-weight: 800; color: var(--teal2); }
+  .stat-label { font-size: 12px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.08em; }
+
+  /* LAYOUT */
+  .page { max-width: 960px; margin: 0 auto; padding: 0 40px 120px; }
+
+  /* SECTION BLOCKS */
+  .section {
+    margin-top: 72px;
+    padding-top: 72px;
+    border-top: 1px solid var(--border);
+  }
+  .section:first-child { border-top: none; margin-top: 48px; }
+  .section-label {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-size: 11px; font-weight: 700;
+    color: var(--purple2);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-bottom: 12px;
+  }
+  .section-num {
+    width: 20px; height: 20px;
+    background: rgba(124,108,247,0.2);
+    border: 1px solid rgba(124,108,247,0.4);
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10px; font-weight: 800;
+  }
+  h2 {
+    font-size: clamp(26px, 4vw, 38px);
+    font-weight: 800;
+    letter-spacing: -1px;
+    margin-bottom: 16px;
+    line-height: 1.1;
+  }
+  h2 .accent { color: var(--teal2); }
+  h3 {
+    font-size: 19px;
+    font-weight: 700;
+    margin: 40px 0 12px;
+    color: var(--text);
+  }
+  h3 .dot { color: var(--purple2); }
+  h4 {
+    font-size: 14px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text2);
+    margin: 24px 0 8px;
+  }
+  p { color: var(--text2); margin-bottom: 16px; }
+  strong { color: var(--text); font-weight: 600; }
+
+  /* CARDS */
+  .card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 28px;
+    margin: 20px 0;
+  }
+  .card-title {
+    font-size: 13px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.08em;
+    color: var(--text2);
+    margin-bottom: 16px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .card-dot { width: 8px; height: 8px; border-radius: 50%; }
+  .card-dot.purple { background: var(--purple); }
+  .card-dot.teal { background: var(--teal); }
+  .card-dot.amber { background: var(--amber); }
+  .card-dot.coral { background: var(--coral); }
+  .card-dot.green { background: var(--green); }
+
+  /* GRID */
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 20px 0; }
+  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin: 20px 0; }
+  @media (max-width: 700px) { .grid-2, .grid-3 { grid-template-columns: 1fr; } }
+
+  /* FEATURE PILLS */
+  .pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: rgba(124,108,247,0.1);
+    border: 1px solid rgba(124,108,247,0.2);
+    border-radius: 100px;
+    padding: 4px 12px;
+    font-size: 12px; font-weight: 600;
+    color: var(--purple2);
+    margin: 4px;
+  }
+  .pill.teal { background: rgba(45,212,191,0.1); border-color: rgba(45,212,191,0.25); color: var(--teal2); }
+  .pill.amber { background: rgba(245,158,11,0.1); border-color: rgba(245,158,11,0.25); color: var(--amber2); }
+  .pill.coral { background: rgba(248,113,113,0.1); border-color: rgba(248,113,113,0.25); color: var(--coral2); }
+  .pill.green { background: rgba(74,222,128,0.1); border-color: rgba(74,222,128,0.25); color: var(--green); }
+
+  /* CODE BLOCK */
+  .code {
+    background: #0d0d16;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px 24px;
+    font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+    font-size: 13px;
+    line-height: 1.7;
+    overflow-x: auto;
+    margin: 16px 0;
+    color: #c9d1d9;
+  }
+  .code .c { color: #8b949e; font-style: italic; }
+  .code .k { color: var(--purple2); }
+  .code .s { color: var(--teal2); }
+  .code .n { color: var(--amber2); }
+  .code .v { color: var(--coral2); }
+  .code .fn { color: var(--blue); }
+
+  /* TABLE */
+  table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+  th {
+    background: var(--bg3);
+    padding: 10px 16px;
+    text-align: left;
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text2);
+    border: 1px solid var(--border);
+  }
+  td {
+    padding: 12px 16px;
+    border: 1px solid var(--border);
+    color: var(--text2);
+    font-size: 14px;
+    vertical-align: top;
+  }
+  tr:hover td { background: var(--bg3); }
+  td strong { color: var(--text); }
+
+  /* CHECKLIST */
+  .checklist { list-style: none; }
+  .checklist li {
+    display: flex; align-items: flex-start; gap: 12px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+    color: var(--text2);
+    font-size: 14px;
+  }
+  .checklist li:last-child { border-bottom: none; }
+  .check {
+    width: 20px; height: 20px; flex-shrink: 0;
+    border: 2px solid var(--teal);
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    margin-top: 2px;
+  }
+  .check::after { content: '✓'; font-size: 11px; color: var(--teal); font-weight: 800; }
+
+  /* CALLOUT */
+  .callout {
+    background: rgba(124,108,247,0.07);
+    border: 1px solid rgba(124,108,247,0.2);
+    border-left: 3px solid var(--purple);
+    border-radius: 12px;
+    padding: 20px 24px;
+    margin: 20px 0;
+  }
+  .callout.teal { background: rgba(45,212,191,0.07); border-color: rgba(45,212,191,0.2); border-left-color: var(--teal); }
+  .callout.amber { background: rgba(245,158,11,0.07); border-color: rgba(245,158,11,0.2); border-left-color: var(--amber); }
+  .callout.coral { background: rgba(248,113,113,0.07); border-color: rgba(248,113,113,0.2); border-left-color: var(--coral); }
+  .callout-title { font-size: 13px; font-weight: 700; margin-bottom: 8px; color: var(--text); }
+
+  /* TIMELINE */
+  .timeline { position: relative; padding-left: 32px; margin: 20px 0; }
+  .timeline::before {
+    content: '';
+    position: absolute; left: 10px; top: 8px; bottom: 8px;
+    width: 2px;
+    background: linear-gradient(to bottom, var(--purple), var(--teal), transparent);
+  }
+  .tl-item { position: relative; margin-bottom: 28px; }
+  .tl-dot {
+    position: absolute; left: -26px; top: 4px;
+    width: 14px; height: 14px;
+    background: var(--bg);
+    border: 2px solid var(--purple);
+    border-radius: 50%;
+  }
+  .tl-dot.teal { border-color: var(--teal); }
+  .tl-dot.amber { border-color: var(--amber); }
+  .tl-day { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--purple2); margin-bottom: 4px; }
+  .tl-day.teal { color: var(--teal2); }
+  .tl-day.amber { color: var(--amber2); }
+  .tl-title { font-size: 16px; font-weight: 700; color: var(--text); margin-bottom: 6px; }
+  .tl-desc { font-size: 13px; color: var(--text2); }
+
+  /* ARCH BLOCK */
+  .arch {
+    background: var(--bg3);
+    border: 1px solid var(--border2);
+    border-radius: 16px;
+    overflow: hidden;
+    margin: 24px 0;
+  }
+  .arch-header {
+    background: rgba(124,108,247,0.1);
+    border-bottom: 1px solid var(--border2);
+    padding: 14px 24px;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--purple2);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .arch-body { padding: 24px; }
+
+  /* SCORE BAR */
+  .score-row { display: flex; align-items: center; gap: 16px; margin: 10px 0; }
+  .score-label { font-size: 13px; color: var(--text2); width: 200px; flex-shrink: 0; }
+  .score-bar { flex: 1; height: 6px; background: var(--bg3); border-radius: 100px; overflow: hidden; }
+  .score-fill { height: 100%; border-radius: 100px; }
+  .score-val { font-size: 13px; font-weight: 700; color: var(--text); width: 40px; text-align: right; }
+
+  /* DIVIDER */
+  .div { height: 1px; background: var(--border); margin: 32px 0; }
+
+  /* NAV */
+  .toc {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 24px;
+    margin: 40px 0;
+  }
+  .toc-title { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text3); margin-bottom: 16px; }
+  .toc-list { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  @media (max-width: 600px) { .toc-list { grid-template-columns: 1fr; } }
+  .toc-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 12px;
+    border-radius: 8px;
+    color: var(--text2);
+    font-size: 13px;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+  }
+  .toc-n { font-weight: 800; color: var(--purple2); font-size: 11px; }
+
+  /* BADGE */
+  .badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 100px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+  }
+  .badge.easy { background: rgba(74,222,128,0.15); color: var(--green); }
+  .badge.medium { background: rgba(245,158,11,0.15); color: var(--amber2); }
+  .badge.hard { background: rgba(248,113,113,0.15); color: var(--coral2); }
+  .badge.expert { background: rgba(244,114,182,0.15); color: var(--pink); }
+  .badge.new { background: rgba(124,108,247,0.15); color: var(--purple2); }
+
+  /* TECH STACK BLOCK */
+  .stack-row {
+    display: flex; gap: 12px; flex-wrap: wrap; margin: 16px 0;
+  }
+  .stack-item {
+    display: flex; flex-direction: column; align-items: center; gap: 6px;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px 20px;
+    min-width: 100px;
+    text-align: center;
+  }
+  .stack-icon { font-size: 22px; }
+  .stack-name { font-size: 12px; font-weight: 700; color: var(--text); }
+  .stack-role { font-size: 11px; color: var(--text3); }
+
+  /* REWARD TABLE */
+  .reward-item {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .reward-item:last-child { border-bottom: none; }
+  .reward-action { font-size: 14px; color: var(--text2); }
+  .reward-val { font-size: 15px; font-weight: 800; }
+  .reward-val.pos { color: var(--green); }
+  .reward-val.neg { color: var(--coral2); }
+  .reward-val.neu { color: var(--text3); }
+
+  /* ENDPOINT BLOCK */
+  .endpoint {
+    display: flex; align-items: flex-start; gap: 16px;
+    padding: 16px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .endpoint:last-child { border-bottom: none; }
+  .method {
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+  .method.post { background: rgba(45,212,191,0.15); color: var(--teal2); }
+  .method.get { background: rgba(96,165,250,0.15); color: var(--blue); }
+  .endpoint-path { font-family: monospace; font-size: 14px; color: var(--text); font-weight: 600; }
+  .endpoint-desc { font-size: 13px; color: var(--text2); margin-top: 4px; }
+
+  /* WIN CONDITIONS */
+  .win-row {
+    display: flex; gap: 16px; align-items: stretch; margin: 20px 0;
+  }
+  .win-line {
+    width: 4px; border-radius: 2px; flex-shrink: 0;
+    background: linear-gradient(to bottom, var(--purple), var(--teal));
+  }
+  .win-content { flex: 1; }
+
+  /* FOOTER */
+  .footer {
+    border-top: 1px solid var(--border);
+    padding: 40px;
+    text-align: center;
+    color: var(--text3);
+    font-size: 13px;
+    margin-top: 80px;
+  }
+  .footer strong { color: var(--purple2); }
+</style>
+</head>
+<body>
+
+<!-- HERO -->
+<div class="hero">
+  <div class="hero-inner">
+    <div class="hero-badge">
+      <span>★</span> Meta × Hugging Face OpenEnv Hackathon — Top 1% Strategy
+    </div>
+    <h1><span class="grad">ARIA</span></h1>
+    <p style="font-size:22px; color: var(--text2); font-weight:500; margin:8px 0 4px;">Agentic Regulatory Intelligence Architecture</p>
+    <p style="font-size:15px; color: var(--text3); margin-bottom: 32px;">The world's first multi-framework compliance RL environment — with live dashboard, adversarial tasks, and procedural scenario generation.</p>
+    <div class="hero-stats">
+      <div class="stat"><span class="stat-val">30%</span><span class="stat-label">Real-world utility</span></div>
+      <div class="stat"><span class="stat-val">5</span><span class="stat-label">Difficulty tiers</span></div>
+      <div class="stat"><span class="stat-val">∞</span><span class="stat-label">Procedural tasks</span></div>
+      <div class="stat"><span class="stat-val">3-stack</span><span class="stat-label">React + FastAPI + Python RL</span></div>
+    </div>
+  </div>
+</div>
+
+<div class="page">
+
+<!-- TOC -->
+<div class="toc">
+  <div class="toc-title">Table of Contents</div>
+  <div class="toc-list">
+    <div class="toc-item"><span class="toc-n">01</span> The 10X Vision & Why We Win</div>
+    <div class="toc-item"><span class="toc-n">02</span> Full Technical Architecture</div>
+    <div class="toc-item"><span class="toc-n">03</span> RL Environment Design</div>
+    <div class="toc-item"><span class="toc-n">04</span> Task & Grader Design</div>
+    <div class="toc-item"><span class="toc-n">05</span> Reward Engineering</div>
+    <div class="toc-item"><span class="toc-n">06</span> React Frontend Dashboard</div>
+    <div class="toc-item"><span class="toc-n">07</span> FastAPI Backend</div>
+    <div class="toc-item"><span class="toc-n">08</span> AI/ML Baseline Agent</div>
+    <div class="toc-item"><span class="toc-n">09</span> Deployment Strategy</div>
+    <div class="toc-item"><span class="toc-n">10</span> Day-by-Day Execution Plan</div>
+  </div>
+</div>
+
+
+<!-- SECTION 1 -->
+<div class="section">
+  <div class="section-label"><div class="section-num">01</div> Strategic Vision</div>
+  <h2>The 10X Vision & <span class="accent">Why We Win</span></h2>
+
+  <p>The base ComplianceAuditEnv is a solid B+. ARIA is an A+ that makes judges put down their coffee and say "this person ships real things." Here's the delta between B+ and A+:</p>
+
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-title"><div class="card-dot coral"></div> Basic Version (B+)</div>
+      <ul class="checklist" style="margin-top:8px;">
+        <li><div class="check"></div>3 static tasks (easy/medium/hard)</li>
+        <li><div class="check"></div>Single GDPR framework</li>
+        <li><div class="check"></div>Text-only terminal environment</li>
+        <li><div class="check"></div>Simple keyword grader</li>
+        <li><div class="check"></div>Basic FastAPI endpoints</li>
+      </ul>
+    </div>
+    <div class="card">
+      <div class="card-title"><div class="card-dot teal"></div> ARIA (A+, 10X)</div>
+      <ul class="checklist" style="margin-top:8px;">
+        <li><div class="check"></div>5 tiers + procedural generation (infinite tasks)</li>
+        <li><div class="check"></div>GDPR + CCPA + HIPAA + SOC2 cross-framework conflicts</li>
+        <li><div class="check"></div>Live React dashboard with real-time WebSocket visualization</li>
+        <li><div class="check"></div>LLM-as-judge + evidence chain grading</li>
+        <li><div class="check"></div>Multi-agent adversarial mode + incident response</li>
+      </ul>
+    </div>
+  </div>
+
+  <h3><span class="dot">●</span> The Three Killer Differentiators</h3>
+
+  <div class="card">
+    <div class="card-title"><div class="card-dot purple"></div> Differentiator 1: Procedural Scenario Generation</div>
+    <p style="margin-bottom:8px;">Every other submission has 3 static JSON tasks. ARIA uses an LLM to procedurally generate new compliance scenarios on demand. Each generated scenario has a unique company profile, regulatory framework mix, document set, and ground truth gap list — all seeded for reproducibility. This means judges can run Nemotron on 100 different tasks, not just 3, giving a much richer difficulty distribution and signal. <strong>No other submission will have this.</strong></p>
+    <div style="margin-top:12px;">
+      <span class="pill">Infinite replay value</span>
+      <span class="pill teal">Deterministic with seed</span>
+      <span class="pill amber">Phase 2 ready</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title"><div class="card-dot teal"></div> Differentiator 2: Multi-Framework Regulatory Conflicts</div>
+    <p style="margin-bottom:8px;">Real compliance is painful precisely because GDPR says one thing and CCPA says another, and your legal team has to reconcile them. ARIA is the only env that models this. In Medium+ tasks, the agent encounters direct framework conflicts — GDPR requires 72-hour breach notification, HIPAA requires 60-day notification, CCPA has different data subject rights — and must correctly identify which framework governs which data, and flag the conflict itself. <strong>LLMs are specifically bad at this.</strong> Hard tasks will consistently score 0.4–0.6 even for GPT-4.</p>
+    <div style="margin-top:12px;">
+      <span class="pill">GDPR</span>
+      <span class="pill teal">HIPAA</span>
+      <span class="pill amber">CCPA</span>
+      <span class="pill coral">SOC2</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title"><div class="card-dot amber"></div> Differentiator 3: React Dashboard — "The Demo Effect"</div>
+    <p style="margin-bottom:8px;">No other submission will have a live visualization layer. When a judge opens your HF Space URL, they see a beautiful dashboard showing agents running in real-time: findings appearing, rewards accumulating, precision/recall curves updating, agent reasoning visible in a side panel. This triggers the "I would actually use this" feeling that earns top marks on real-world utility. <strong>The visual demo is worth 5-8 points alone.</strong></p>
+    <div style="margin-top:12px;">
+      <span class="pill">WebSocket live updates</span>
+      <span class="pill teal">Episode replay</span>
+      <span class="pill amber">Multi-agent comparison</span>
+    </div>
+  </div>
+
+  <div class="callout amber" style="margin-top:28px;">
+    <div class="callout-title">⚡ The Winning Formula</div>
+    <p style="margin:0; color: var(--text2);">
+      Procedural generation (infinite tasks) + Cross-framework conflicts (genuinely hard for LLMs) + Live React dashboard (demo effect) + Multi-agent mode (novelty) + Clean 3-layer architecture (code quality) = <strong style="color:var(--amber2);">Top 1% submission.</strong>
+    </p>
+  </div>
+</div>
+
+
+<!-- SECTION 2 -->
+<div class="section">
+  <div class="section-label"><div class="section-num">02</div> Architecture</div>
+  <h2>Full Technical <span class="accent">Architecture</span></h2>
+
+  <div class="callout teal" style="margin-bottom:28px;">
+    <div class="callout-title">Stack Decision</div>
+    <p style="margin:0; color: var(--text2);">React (Vite + TypeScript + Tailwind) for frontend. FastAPI (Python 3.11, asyncio, WebSockets) for backend. Python RL environment as a proper package. SQLite for persistence. Docker for deployment. This stack is optimal: FastAPI + Python is the natural home of RL/ML code, React gives the richest dashboard UI, and Docker+HF Spaces handles deployment cleanly.</p>
+  </div>
+
+  <div class="arch">
+    <div class="arch-header">🏗 Full System Architecture</div>
+    <div class="arch-body">
+<div class="code"><span class="c">┌─────────────────────────────────────────────────────────────────┐</span>
+<span class="c">│                    ARIA — Full Architecture                      │</span>
+<span class="c">└─────────────────────────────────────────────────────────────────┘</span>
+
+<span class="n">LAYER 1: REACT FRONTEND</span>  (Vite + TypeScript + Tailwind + Recharts)
+  ├── Dashboard (live agent runs, real-time charts)
+  ├── Task Explorer (browse/generate tasks by difficulty)
+  ├── Episode Replay Viewer (step-by-step agent reasoning)
+  ├── Leaderboard (compare agent scores)
+  └── WebSocket client (real-time updates from backend)
+       │  HTTP REST + WebSocket
+       ▼
+<span class="n">LAYER 2: FASTAPI BACKEND</span>  (Python 3.11, asyncio, uvicorn)
+  ├── /reset /step /state /tasks /grader /baseline   ← OpenEnv spec
+  ├── /ws  WebSocket for live episode streaming
+  ├── /generate  Procedural task generation
+  ├── /replay/{episode_id}  Fetch stored episode
+  ├── /leaderboard  Multi-agent scores
+  └── SessionManager (multiple concurrent episodes)
+       │  Python function calls
+       ▼
+<span class="n">LAYER 3: RL ENVIRONMENT</span>  (Python, OpenEnv spec)
+  ├── ARIAEnv                 ← main environment class
+  ├── TaskLoader              ← loads static + generated tasks
+  ├── ProceduralGenerator     ← LLM-based task synthesis
+  ├── RewardEngine            ← dense reward computation
+  ├── GraderSuite             ← deterministic graders
+  └── EvidenceChainValidator  ← passage-citation checking
+       │
+       ▼
+<span class="n">PERSISTENCE LAYER</span>  (SQLite via SQLAlchemy)
+  ├── episodes.db   (episode logs, agent trajectories)
+  ├── tasks.db      (generated task cache, seeded)
+  └── scores.db     (leaderboard, baseline results)</div>
+    </div>
+  </div>
+
+  <h3><span class="dot">●</span> Repository Structure</h3>
+
+  <div class="code"><span class="s">aria-env/</span>
+├── <span class="n">README.md</span>             <span class="c">← judges read this first</span>
+├── <span class="n">openenv.yaml</span>          <span class="c">← spec compliance</span>
+├── <span class="n">Dockerfile</span>            <span class="c">← single container, builds frontend+backend</span>
+├── <span class="n">docker-compose.yml</span>    <span class="c">← local dev</span>
+├── <span class="n">requirements.txt</span>
+├── <span class="n">pyproject.toml</span>
+│
+├── <span class="k">frontend/</span>             <span class="c">← React app (Vite + TypeScript)</span>
+│   ├── src/
+│   │   ├── <span class="n">App.tsx</span>
+│   │   ├── components/
+│   │   │   ├── <span class="n">Dashboard.tsx</span>       <span class="c">← main view, live episode panel</span>
+│   │   │   ├── <span class="n">TaskExplorer.tsx</span>    <span class="c">← browse + generate tasks</span>
+│   │   │   ├── <span class="n">EpisodeViewer.tsx</span>   <span class="c">← step-by-step replay</span>
+│   │   │   ├── <span class="n">RewardChart.tsx</span>     <span class="c">← recharts live reward curve</span>
+│   │   │   ├── <span class="n">FindingsPanel.tsx</span>   <span class="c">← active findings list</span>
+│   │   │   ├── <span class="n">Leaderboard.tsx</span>
+│   │   │   └── <span class="n">AgentChat.tsx</span>       <span class="c">← live agent reasoning stream</span>
+│   │   ├── hooks/
+│   │   │   ├── <span class="n">useWebSocket.ts</span>
+│   │   │   └── <span class="n">useARIAEnv.ts</span>
+│   │   └── types/
+│   │       └── <span class="n">aria.types.ts</span>       <span class="c">← TypeScript models matching Pydantic</span>
+│   └── vite.config.ts
+│
+├── <span class="k">aria/</span>                 <span class="c">← RL environment package</span>
+│   ├── <span class="n">__init__.py</span>
+│   ├── <span class="n">environment.py</span>      <span class="c">← ARIAEnv main class</span>
+│   ├── <span class="n">models.py</span>           <span class="c">← all Pydantic models</span>
+│   ├── <span class="n">reward_engine.py</span>    <span class="c">← dense reward computation</span>
+│   ├── <span class="n">grader.py</span>           <span class="c">← deterministic graders</span>
+│   ├── <span class="n">evidence.py</span>         <span class="c">← evidence chain validator</span>
+│   ├── <span class="n">generator.py</span>        <span class="c">← procedural scenario generation</span>
+│   └── <span class="n">frameworks.py</span>       <span class="c">← GDPR/HIPAA/CCPA/SOC2 rule specs</span>
+│
+├── <span class="k">api/</span>                  <span class="c">← FastAPI application</span>
+│   ├── <span class="n">app.py</span>              <span class="c">← FastAPI setup + static file serving</span>
+│   ├── <span class="n">routes_openenv.py</span>   <span class="c">← spec endpoints</span>
+│   ├── <span class="n">routes_aria.py</span>      <span class="c">← extended ARIA-specific routes</span>
+│   ├── <span class="n">websocket.py</span>        <span class="c">← WebSocket manager</span>
+│   └── <span class="n">session.py</span>          <span class="c">← per-session env management</span>
+│
+├── <span class="k">tasks/</span>                <span class="c">← static task definitions</span>
+│   ├── easy/
+│   ├── medium/
+│   ├── hard/
+│   ├── expert/              <span class="c">← 4th difficulty tier (ARIA exclusive)</span>
+│   └── generated/           <span class="c">← LLM-generated task cache</span>
+│
+├── <span class="k">baseline/</span>
+│   ├── <span class="n">agent.py</span>
+│   ├── <span class="n">run_baseline.py</span>
+│   └── <span class="n">prompts.py</span>
+│
+└── <span class="k">tests/</span>
+    ├── <span class="n">test_environment.py</span>
+    ├── <span class="n">test_graders.py</span>
+    ├── <span class="n">test_reward.py</span>
+    └── <span class="n">test_evidence.py</span></div>
+
+  <h3><span class="dot">●</span> Tech Stack at a Glance</h3>
+  <div class="stack-row">
+    <div class="stack-item"><div class="stack-icon">⚛️</div><div class="stack-name">React 18</div><div class="stack-role">Dashboard UI</div></div>
+    <div class="stack-item"><div class="stack-icon">📘</div><div class="stack-name">TypeScript</div><div class="stack-role">Type safety</div></div>
+    <div class="stack-item"><div class="stack-icon">🎨</div><div class="stack-name">Tailwind CSS</div><div class="stack-role">Styling</div></div>
+    <div class="stack-item"><div class="stack-icon">📊</div><div class="stack-name">Recharts</div><div class="stack-role">Live charts</div></div>
+    <div class="stack-item"><div class="stack-icon">🚀</div><div class="stack-name">FastAPI</div><div class="stack-role">REST + WS API</div></div>
+    <div class="stack-item"><div class="stack-icon">🐍</div><div class="stack-name">Python 3.11</div><div class="stack-role">RL Environment</div></div>
+    <div class="stack-item"><div class="stack-icon">📦</div><div class="stack-name">Pydantic v2</div><div class="stack-role">Models</div></div>
+    <div class="stack-item"><div class="stack-icon">🗄️</div><div class="stack-name">SQLite</div><div class="stack-role">Persistence</div></div>
+    <div class="stack-item"><div class="stack-icon">🐳</div><div class="stack-name">Docker</div><div class="stack-role">Deployment</div></div>
+  </div>
+</div>
+
+
+<!-- SECTION 3 -->
+<div class="section">
+  <div class="section-label"><div class="section-num">03</div> RL Environment</div>
+  <h2>RL Environment <span class="accent">Design</span></h2>
+
+  <h3><span class="dot">●</span> What is RL in This Context?</h3>
+  <p>Forget Atari. Forget CartPole. In ARIA, RL is a <strong>structured multi-turn decision loop</strong> where an LLM agent reads compliance documents, takes targeted actions, receives immediate feedback, and builds toward a final expert-quality audit report. The environment is the "world" the agent lives in. It knows the ground truth. It judges every action.</p>
+
+  <div class="arch">
+    <div class="arch-header">Episode Flow</div>
+    <div class="arch-body">
+<div class="code"><span class="n">EPISODE START</span>
+  reset(task_name, seed?) 
+    → returns ARIAObservation (documents + regulatory context)
+
+<span class="n">AGENT LOOP</span>
+  while not done:
+    agent reads observation (documents, findings, feedback, steps_remaining)
+    agent selects action (JSON object with action_type + fields)
+    env.step(action) 
+      → validates action
+      → updates state (findings, sections viewed)
+      → computes step reward (dense, immediate)
+      → returns (new_obs, reward, done, info)
+
+<span class="n">EPISODE END</span>
+  triggered by: submit_final_report  OR  max_steps exhausted
+  grader.score(final_findings)
+    → precision, recall, F1, severity_accuracy, evidence_quality
+    → final score: 0.0 – 1.0
+
+<span class="n">WEBSOCKET STREAM</span>
+  at every step, ARIAEnv emits an event via WebSocket
+    → frontend receives, updates live dashboard in real-time</div>
+    </div>
+  </div>
+
+  <h3><span class="dot">●</span> State Design (Observation Model)</h3>
+
+  <div class="code"><span class="k">class</span> <span class="fn">ARIAObservation</span>(BaseModel):
+  <span class="c"># ── Episode context ──────────────────────────────────────</span>
+  session_id:          str             <span class="c"># unique per reset()</span>
+  task_id:             str             <span class="c"># e.g. "medium_3" or "gen_a7f2"</span>
+  task_description:    str
+  regulatory_context:  RegulatoryContext  <span class="c"># frameworks + their rules in scope</span>
+  
+  <span class="c"># ── Documents ─────────────────────────────────────────────</span>
+  documents:           list[Document]  <span class="c"># full corpus, sections paginable</span>
+  visible_sections:    list[str]       <span class="c"># sections agent has unlocked</span>
+  
+  <span class="c"># ── Agent's work so far ───────────────────────────────────</span>
+  active_findings:     list[Finding]
+  retracted_findings:  list[Finding]
+  submitted_remediations: list[Remediation]
+  
+  <span class="c"># ── Immediate feedback ────────────────────────────────────</span>
+  last_action:         ActionType | None
+  last_action_result:  ActionResult     <span class="c"># ACCEPTED / REJECTED / DUPLICATE / etc</span>
+  last_reward:         float
+  last_reward_reason:  str             <span class="c"># human-readable: "correct breach_notification gap"</span>
+  
+  <span class="c"># ── Running totals ────────────────────────────────────────</span>
+  cumulative_reward:   float
+  steps_taken:         int
+  steps_remaining:     int
+  
+  <span class="c"># ── Episode status ────────────────────────────────────────</span>
+  done:                bool
+  phase:               Literal[<span class="s">"reading"</span>, <span class="s">"auditing"</span>, <span class="s">"remediating"</span>, <span class="s">"complete"</span>]
+  
+  <span class="c"># ── NEW in ARIA: Evidence chain ───────────────────────────</span>
+  evidence_citations:  list[EvidenceCitation]  <span class="c"># passages agent cited</span>
+  
+  <span class="c"># ── NEW in ARIA: Incident flag (Expert mode) ──────────────</span>
+  active_incident:     Incident | None  <span class="c"># live data breach scenario</span>
+  incident_timeline:   list[IncidentEvent]</div>
+
+  <h3><span class="dot">●</span> Action Design</h3>
+
+  <div class="code"><span class="k">class</span> <span class="fn">ARIAAction</span>(BaseModel):
+  action_type: <span class="n">Literal</span>[
+    <span class="s">"request_section"</span>,      <span class="c"># Read a specific document section</span>
+    <span class="s">"identify_gap"</span>,         <span class="c"># Flag a compliance violation</span>
+    <span class="s">"cite_evidence"</span>,        <span class="c"># NEW: Quote exact passage supporting a finding</span>
+    <span class="s">"submit_remediation"</span>,   <span class="c"># Propose a fix for a finding</span>
+    <span class="s">"flag_false_positive"</span>,  <span class="c"># Retract a wrong finding</span>
+    <span class="s">"escalate_conflict"</span>,    <span class="c"># NEW: Flag a cross-framework regulatory conflict</span>
+    <span class="s">"respond_to_incident"</span>,  <span class="c"># NEW: Take action on active data breach</span>
+    <span class="s">"request_clarification"</span>,<span class="c"># NEW: Ask for more context (simulated response)</span>
+    <span class="s">"submit_final_report"</span>   <span class="c"># End episode</span>
+  ]
+  
+  <span class="c"># for identify_gap</span>
+  clause_ref:        str | None
+  gap_type:          GapType | None
+  severity:          Severity | None
+  description:       str | None
+  
+  <span class="c"># for cite_evidence (NEW)</span>
+  finding_id:        str | None
+  passage_text:      str | None        <span class="c"># exact text quoted from document</span>
+  passage_location:  str | None        <span class="c"># "doc_id.section_id.paragraph_N"</span>
+  
+  <span class="c"># for submit_remediation</span>
+  remediation_text:  str | None
+  target_framework:  Framework | None  <span class="c"># which regulation this satisfies</span>
+  
+  <span class="c"># for escalate_conflict (NEW)</span>
+  framework_a:       Framework | None
+  framework_b:       Framework | None
+  conflict_desc:     str | None
+  
+  <span class="c"># for respond_to_incident (NEW)</span>
+  incident_id:       str | None
+  response_type:     IncidentResponseType | None  <span class="c"># notify_authority / notify_subjects / etc</span>
+  response_detail:   str | None
+  
+  <span class="c"># for request_section / flag_false_positive / final_report</span>
+  document_id:       str | None
+  section_id:        str | None
+  retract_finding_id: str | None</div>
+
+  <h3><span class="dot">●</span> Evidence Chain Validation (Key Differentiator)</h3>
+  <p>In ARIA, agents must <em>prove</em> their findings with citations. This is the hardest and most realistic part of real compliance auditing. When an agent calls <code>identify_gap</code>, it gets partial credit. When it follows up with <code>cite_evidence</code> pointing to the exact passage, it gets the full reward. This makes the environment resistant to lucky guessing.</p>
+
+  <div class="code"><span class="k">class</span> <span class="fn">EvidenceChainValidator</span>:
+  <span class="k">def</span> <span class="fn">validate</span>(self, finding: Finding, citation: EvidenceCitation, 
+               documents: list[Document]) -> EvidenceScore:
+    <span class="c">"""
+    Score an evidence citation 0.0–1.0:
+    - Does the passage_location actually exist?        (0.2)
+    - Does passage_text match the document content?    (0.2)
+    - Is the passage relevant to the gap_type?         (0.3)
+    - Does the passage contain the specific violation?  (0.3)
+    """</span>
+    
+    <span class="c"># Locate the section</span>
+    section = self._find_section(citation.passage_location, documents)
+    <span class="k">if</span> not section:
+      return EvidenceScore(score=0.0, reason=<span class="s">"Section not found"</span>)
+    
+    <span class="c"># Fuzzy-match the quoted text</span>
+    text_match = self._fuzzy_match(citation.passage_text, section.content)
+    <span class="k">if</span> text_match < 0.6:
+      return EvidenceScore(score=0.2, reason=<span class="s">"Passage text doesn't match section"</span>)
+    
+    <span class="c"># Check relevance to gap type via keyword overlap</span>
+    relevance = self._score_relevance(citation.passage_text, finding.gap_type)
+    
+    return EvidenceScore(
+      score=0.2 + 0.2 + (relevance * 0.6),
+      reason=f<span class="s">"Evidence quality: {relevance:.0%} relevant to {finding.gap_type}"</span>
+    )</div>
+</div>
+
+
+<!-- SECTION 4 -->
+<div class="section">
+  <div class="section-label"><div class="section-num">04</div> Task Design</div>
+  <h2>Task & Grader <span class="accent">Design</span></h2>
+
+  <h3><span class="dot">●</span> Five-Tier Difficulty System</h3>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Tier</th>
+        <th>Name</th>
+        <th>Documents</th>
+        <th>Gaps</th>
+        <th>Frameworks</th>
+        <th>Max Steps</th>
+        <th>Expected GPT-4 Score</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><span class="badge easy">Easy</span></td>
+        <td><strong>Single Doc GDPR</strong></td>
+        <td>1</td>
+        <td>3 (obvious)</td>
+        <td>GDPR only</td>
+        <td>15</td>
+        <td>0.85–1.0</td>
+      </tr>
+      <tr>
+        <td><span class="badge medium">Medium</span></td>
+        <td><strong>Cross-Doc Review</strong></td>
+        <td>2</td>
+        <td>5 + contradictions</td>
+        <td>GDPR + CCPA</td>
+        <td>25</td>
+        <td>0.65–0.80</td>
+      </tr>
+      <tr>
+        <td><span class="badge hard">Hard</span></td>
+        <td><strong>Multi-Framework Conflict</strong></td>
+        <td>4</td>
+        <td>8 + 3 red herrings</td>
+        <td>GDPR + HIPAA + CCPA</td>
+        <td>40</td>
+        <td>0.42–0.58</td>
+      </tr>
+      <tr>
+        <td><span class="badge expert">Expert</span></td>
+        <td><strong>Incident Response Suite</strong></td>
+        <td>5</td>
+        <td>10 + live breach incident</td>
+        <td>All 4 frameworks</td>
+        <td>60</td>
+        <td>0.25–0.40</td>
+      </tr>
+      <tr>
+        <td><span class="badge new">Generated</span></td>
+        <td><strong>Procedural (∞)</strong></td>
+        <td>Variable</td>
+        <td>Variable</td>
+        <td>Variable mix</td>
+        <td>Variable</td>
+        <td>Varies by seed</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="callout" style="margin-top: 4px;">
+    <div class="callout-title">Why Expert tier matters</div>
+    <p style="margin:0; color:var(--text2);">The Expert tier with an active incident simulation is what makes the Hard task genuinely hard even for GPT-4o. While reviewing 5 documents for 10 gaps, a data breach alert fires — the agent must simultaneously continue the audit AND correctly respond to the incident (notify the right authority within the right timeframe per the right framework). Failing to respond correctly triggers a large penalty. <strong>Expected GPT-4o score: 0.25–0.40.</strong> This gives perfect difficulty spread.</p>
+  </div>
+
+  <h3><span class="dot">●</span> Procedural Scenario Generator</h3>
+  <p>This is the engine that makes ARIA unique. It uses the OpenAI API to generate a complete, new compliance scenario from a structured prompt, then validates and caches it with a deterministic seed.</p>
+
+  <div class="code"><span class="k">class</span> <span class="fn">ProceduralScenarioGenerator</span>:
+  <span class="k">def</span> <span class="fn">generate</span>(self, difficulty: str, seed: int, 
+               frameworks: list[str]) -> GeneratedTask:
+    <span class="c">"""
+    Calls GPT-4o-mini with a structured prompt to generate:
+    - Company profile (industry, size, data types handled)
+    - 2-5 document stubs with realistic content
+    - Ground truth gap list with clause refs and types
+    - Red herring clauses that look like violations but aren't
+    
+    Returns deterministic output because seed controls:
+    - The exact prompt variation used
+    - The company template selected from a pool
+    - Post-processing normalization
+    """</span>
+    random.seed(seed)
+    template = random.choice(COMPANY_TEMPLATES)  <span class="c"># 50+ templates</span>
+    framework_rules = self._select_framework_rules(frameworks, seed)
+    
+    prompt = self._build_generation_prompt(
+      template, difficulty, framework_rules, seed
+    )
+    
+    <span class="c"># Call API (cached by hash of prompt for reproducibility)</span>
+    raw = self._cached_llm_call(prompt, seed)
+    
+    <span class="c"># Parse + validate</span>
+    task = GeneratedTask.model_validate(raw)
+    task.seed = seed
+    task.is_generated = True
+    
+    <span class="c"># Cache to disk (tasks/generated/seed_{seed}.json)</span>
+    self._cache_task(task)
+    return task
+    
+  <span class="k">def</span> <span class="fn">_cached_llm_call</span>(self, prompt: str, seed: int) -> dict:
+    <span class="c"># Hash the prompt to get a cache key</span>
+    key = hashlib.sha256(prompt.encode()).hexdigest()[:16]
+    cache_path = f<span class="s">f"tasks/generated/cache_{key}.json"</span>
+    
+    <span class="k">if</span> os.path.exists(cache_path):
+      <span class="k">with</span> open(cache_path) <span class="k">as</span> f:
+        return json.load(f)  <span class="c"># deterministic replay</span>
+    
+    <span class="c"># First time: call API, save result</span>
+    response = openai_client.chat.completions.create(
+      model=<span class="s">"gpt-4o-mini"</span>, temperature=0.0, seed=seed, ...
+    )
+    result = json.loads(response.choices[0].message.content)
+    <span class="k">with</span> open(cache_path, <span class="s">"w"</span>) <span class="k">as</span> f:
+      json.dump(result, f)
+    return result</div>
+
+  <h3><span class="dot">●</span> Grader Design</h3>
+  <p>The grader computes a final 0.0–1.0 score from five components. All components are deterministic. Same inputs always produce the same score.</p>
+
+  <div class="card">
+    <div class="card-title"><div class="card-dot teal"></div> Grader Score Components</div>
+    <div class="score-row"><div class="score-label">Gap detection (F1)</div><div class="score-bar"><div class="score-fill" style="width:40%; background: linear-gradient(90deg, var(--teal), var(--teal2));"></div></div><div class="score-val">40%</div></div>
+    <div class="score-row"><div class="score-label">Evidence quality</div><div class="score-bar"><div class="score-fill" style="width:25%; background: linear-gradient(90deg, var(--purple), var(--purple2));"></div></div><div class="score-val">25%</div></div>
+    <div class="score-row"><div class="score-label">Remediation quality</div><div class="score-bar"><div class="score-fill" style="width:20%; background: linear-gradient(90deg, var(--amber), var(--amber2));"></div></div><div class="score-val">20%</div></div>
+    <div class="score-row"><div class="score-label">Severity accuracy</div><div class="score-bar"><div class="score-fill" style="width:10%; background: linear-gradient(90deg, var(--coral), var(--coral2));"></div></div><div class="score-val">10%</div></div>
+    <div class="score-row"><div class="score-label">Conflict detection</div><div class="score-bar"><div class="score-fill" style="width:5%; background: linear-gradient(90deg, var(--pink), #f9a8d4);"></div></div><div class="score-val">5%</div></div>
+  </div>
+
+  <h3><span class="dot">●</span> Anti-Gaming Mechanisms</h3>
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-title"><div class="card-dot coral"></div> Evidence Required</div>
+      <p style="font-size:13px; margin:0;">Without a cite_evidence action, gap identification gives only 60% of the available reward. This prevents the agent from shotgun-guessing all possible gap types at every clause and getting lucky.</p>
+    </div>
+    <div class="card">
+      <div class="card-title"><div class="card-dot coral"></div> Red Herrings</div>
+      <p style="font-size:13px; margin:0;">3 "near-miss" clauses in Hard tasks that pattern-match common violations but are actually compliant (e.g. a data retention policy that correctly specifies a limit). False positives cost -0.10 each.</p>
+    </div>
+    <div class="card">
+      <div class="card-title"><div class="card-dot coral"></div> Fuzzy Matching</div>
+      <p style="font-size:13px; margin:0;">Clause references are normalized (case-insensitive, strip whitespace/dots/underscores) to prevent gaming via exact string duplication, while still being forgiving of minor formatting differences.</p>
+    </div>
+    <div class="card">
+      <div class="card-title"><div class="card-dot coral"></div> Step Budgets</div>
+      <p style="font-size:13px; margin:0;">Step limits are tight enough to prevent brute-force enumeration of all possible (clause × gap_type) combinations, but generous enough for a strategic agent. Easy: 15, Medium: 25, Hard: 40, Expert: 60.</p>
+    </div>
+  </div>
+</div>
+
+
+<!-- SECTION 5 -->
+<div class="section">
+  <div class="section-label"><div class="section-num">05</div> Reward Engineering</div>
+  <h2>Reward <span class="accent">Engineering</span></h2>
+
+  <p>The golden rule: <strong>the agent should always feel warmer or colder.</strong> Every action type has an immediate, human-readable reward signal. The agent should never complete 25 steps in silence.</p>
+
+  <h3><span class="dot">●</span> Complete Reward Table</h3>
+
+  <div class="card">
+    <div class="card-title"><div class="card-dot teal"></div> Per-Step Rewards (Dense, Immediate)</div>
+    <div class="reward-item"><div class="reward-action">Correct gap identified (matches ground truth)</div><div class="reward-val pos">+0.20</div></div>
+    <div class="reward-item"><div class="reward-action">Evidence citation validates the gap perfectly</div><div class="reward-val pos">+0.12</div></div>
+    <div class="reward-item"><div class="reward-action">Evidence citation partially relevant</div><div class="reward-val pos">+0.04 to +0.10</div></div>
+    <div class="reward-item"><div class="reward-action">Correct severity classification bonus</div><div class="reward-val pos">+0.05</div></div>
+    <div class="reward-item"><div class="reward-action">High-quality remediation (keyword coverage)</div><div class="reward-val pos">+0.15</div></div>
+    <div class="reward-item"><div class="reward-action">Partial-quality remediation</div><div class="reward-val pos">+0.04 to +0.12</div></div>
+    <div class="reward-item"><div class="reward-action">Cross-framework conflict correctly escalated</div><div class="reward-val pos">+0.18</div></div>
+    <div class="reward-item"><div class="reward-action">Correct incident response action (Expert)</div><div class="reward-val pos">+0.20</div></div>
+    <div class="reward-item"><div class="reward-action">Self-correction of false positive</div><div class="reward-val pos">+0.05</div></div>
+    <div class="reward-item"><div class="reward-action">Request new section (first time)</div><div class="reward-val neu">0.00</div></div>
+    <div class="reward-item"><div class="reward-action">False positive identification</div><div class="reward-val neg">−0.10</div></div>
+    <div class="reward-item"><div class="reward-action">Wrong retraction (removing a real finding)</div><div class="reward-val neg">−0.08</div></div>
+    <div class="reward-item"><div class="reward-action">Duplicate finding submitted</div><div class="reward-val neg">−0.02</div></div>
+    <div class="reward-item"><div class="reward-action">Redundant section request (already read)</div><div class="reward-val neg">−0.02</div></div>
+    <div class="reward-item"><div class="reward-action">Invalid action (missing required field)</div><div class="reward-val neg">−0.05</div></div>
+    <div class="reward-item"><div class="reward-action">Spam behavior (3+ FPs in last 5 steps)</div><div class="reward-val neg">−0.10 extra</div></div>
+    <div class="reward-item"><div class="reward-action">Missed incident response deadline (Expert)</div><div class="reward-val neg">−0.25</div></div>
+  </div>
+
+  <div class="card" style="margin-top:16px;">
+    <div class="card-title"><div class="card-dot purple"></div> End-of-Episode Bonuses (Sparse)</div>
+    <div class="reward-item"><div class="reward-action">Recall bonus: (gaps_found / total_gaps) × 0.30</div><div class="reward-val pos">up to +0.30</div></div>
+    <div class="reward-item"><div class="reward-action">Precision bonus: (1 − FP_rate) × 0.20</div><div class="reward-val pos">up to +0.20</div></div>
+    <div class="reward-item"><div class="reward-action">Evidence completeness bonus</div><div class="reward-val pos">up to +0.10</div></div>
+    <div class="reward-item"><div class="reward-action">Efficiency bonus (completed early)</div><div class="reward-val pos">up to +0.05</div></div>
+  </div>
+
+  <h3><span class="dot">●</span> Why This Design Is Brilliant</h3>
+  <div class="callout teal">
+    <div class="callout-title">The Spam-Everything Problem (Solved)</div>
+    <p style="margin:0; color:var(--text2);">A naive agent might try to flag every clause with every gap type to maximize recall. The reward function prevents this: each false positive costs -0.10, and three consecutive false positives trigger an additional -0.10 spam penalty. An agent that flags 40 clauses as violations when only 8 are real will score approximately: 8 × 0.20 (TPs) + 32 × (−0.10) (FPs) + spam penalties = 1.60 − 3.20 − 0.50 = <strong style="color:var(--coral2);">−2.10 cumulative</strong>. A strategic agent scores ~2.5. The reward perfectly encodes the precision-recall tradeoff.</p>
+  </div>
+
+  <div class="callout" style="margin-top:16px;">
+    <div class="callout-title">The Phase-Aware Reward Structure</div>
+    <p style="margin:0; color:var(--text2);">The environment tracks an internal <code>phase</code> (reading → auditing → remediating → complete). Taking a <code>submit_remediation</code> action during the reading phase triggers a mild warning. This gently encourages the agent to develop a natural audit workflow: read first, then flag, then remediate. This makes trajectories more realistic and meaningful for RL training purposes.</p>
+  </div>
+</div>
+
+
+<!-- SECTION 6 -->
+<div class="section">
+  <div class="section-label"><div class="section-num">06</div> Frontend</div>
+  <h2>React Frontend <span class="accent">Dashboard</span></h2>
+
+  <p>The frontend is not just cosmetic — it's a key differentiating factor for the "real-world utility" criterion. Judges will open the HF Space URL and see this dashboard. It should feel like something a real ML team would bookmark.</p>
+
+  <h3><span class="dot">●</span> Dashboard Pages</h3>
+
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-title"><div class="card-dot purple"></div> Page 1: Live Monitor</div>
+      <p style="font-size:13px;">Main view. Shows a running episode in real-time via WebSocket. Left panel: document viewer with sections highlighted as the agent reads them. Center: live reward chart (Recharts LineChart, updates every step). Right panel: agent's current findings list with status badges (CORRECT/PENDING/RETRACTED). Bottom: agent's last action and feedback message, streamed live.</p>
+    </div>
+    <div class="card">
+      <div class="card-title"><div class="card-dot teal"></div> Page 2: Task Explorer</div>
+      <p style="font-size:13px;">Browse all 5 difficulty tiers. Each task card shows: title, framework badges (GDPR/HIPAA chips), difficulty bar, expected score range. A "Generate New Task" button triggers the procedural generator (with seed input). Generated tasks appear live in the list. Users can click any task to inspect it or run it.</p>
+    </div>
+    <div class="card">
+      <div class="card-title"><div class="card-dot amber"></div> Page 3: Episode Replay</div>
+      <p style="font-size:13px;">Step-by-step replay of a completed episode stored in SQLite. A timeline scrubber shows all N steps. Clicking any step shows the full observation, action taken, reward received, and agent reasoning. Document viewer highlights the exact section being read. Great for debugging agent behavior.</p>
+    </div>
+    <div class="card">
+      <div class="card-title"><div class="card-dot coral"></div> Page 4: Leaderboard</div>
+      <p style="font-size:13px;">Sortable table of all baseline runs: model name, task, score, precision, recall, steps taken. Bar chart comparison across difficulty tiers. The difficulty spread visualization (gpt-4o-mini: Easy 0.87, Medium 0.61, Hard 0.42, Expert 0.28) is the key visual judges will screenshot.</p>
+    </div>
+  </div>
+
+  <h3><span class="dot">●</span> Key Frontend Components</h3>
+
+  <div class="code"><span class="c">// hooks/useWebSocket.ts</span>
+<span class="c">// Manages WebSocket connection to backend, auto-reconnects</span>
+<span class="k">export function</span> <span class="fn">useARIAWebSocket</span>(sessionId: string) {
+  <span class="k">const</span> [events, setEvents] = useState&lt;ARIAEvent[]&gt;([]);
+  <span class="k">const</span> [lastObs, setLastObs] = useState&lt;ARIAObservation | null&gt;(null);
+  <span class="k">const</span> ws = useRef&lt;WebSocket | null&gt;(null);
+  
+  useEffect(() => {
+    ws.current = <span class="k">new</span> WebSocket(`wss://your-hf-space.hf.space/ws/${sessionId}`);
+    ws.current.onmessage = (e) => {
+      <span class="k">const</span> event: ARIAEvent = JSON.parse(e.data);
+      <span class="k">if</span> (event.type === <span class="s">'step'</span>) {
+        setLastObs(event.observation);
+        setEvents(prev => [...prev, event]);
+      }
+    };
+    <span class="k">return</span> () => ws.current?.close();
+  }, [sessionId]);
+  
+  <span class="k">return</span> { events, lastObs };
+}
+
+<span class="c">// components/RewardChart.tsx</span>
+<span class="c">// Recharts live cumulative reward chart</span>
+<span class="k">export function</span> <span class="fn">RewardChart</span>({ events }: { events: ARIAEvent[] }) {
+  <span class="k">const</span> data = events.map((e, i) => ({
+    step: i + 1,
+    reward: e.reward,
+    cumulative: e.observation.cumulative_reward,
+    phase: e.observation.phase,
+  }));
+  
+  <span class="k">return</span> (
+    &lt;ResponsiveContainer width=<span class="s">"100%"</span> height={240}&gt;
+      &lt;ComposedChart data={data}&gt;
+        &lt;CartesianGrid stroke=<span class="s">"rgba(255,255,255,0.06)"</span>/&gt;
+        &lt;XAxis dataKey=<span class="s">"step"</span> tick={{ fill: <span class="s">'#9898b0'</span>, fontSize: 11 }}/&gt;
+        &lt;YAxis tick={{ fill: <span class="s">'#9898b0'</span>, fontSize: 11 }}/&gt;
+        &lt;Tooltip contentStyle={{ background: <span class="s">'#111118'</span>, border: <span class="s">'1px solid #333'</span> }}/&gt;
+        &lt;Bar dataKey=<span class="s">"reward"</span> fill=<span class="s">"#7c6cf7"</span> opacity={0.6} radius={[2,2,0,0]}/&gt;
+        &lt;Line dataKey=<span class="s">"cumulative"</span> stroke=<span class="s">"#2dd4bf"</span> strokeWidth={2} dot={false}/&gt;
+      &lt;/ComposedChart&gt;
+    &lt;/ResponsiveContainer&gt;
+  );
+}</div>
+
+  <h3><span class="dot">●</span> WebSocket Protocol (Backend → Frontend)</h3>
+  <div class="code"><span class="c"># Events the backend emits over WebSocket</span>
+{
+  <span class="s">"type"</span>: <span class="s">"step"</span>,
+  <span class="s">"step_number"</span>: 7,
+  <span class="s">"action"</span>: { <span class="s">"action_type"</span>: <span class="s">"identify_gap"</span>, <span class="s">"clause_ref"</span>: <span class="s">"pp.s3"</span>, ... },
+  <span class="s">"reward"</span>: 0.20,
+  <span class="s">"reward_reason"</span>: <span class="s">"Correct data_retention gap in privacy_policy.s3"</span>,
+  <span class="s">"observation"</span>: { <span class="c">... full ARIAObservation ...</span> },
+  <span class="s">"agent_thinking"</span>: <span class="s">"I see that section 3 specifies retention but..."</span>  <span class="c"># optional</span>
+}
+
+{
+  <span class="s">"type"</span>: <span class="s">"episode_complete"</span>,
+  <span class="s">"grade_result"</span>: { <span class="s">"score"</span>: 0.73, <span class="s">"precision"</span>: 0.88, <span class="s">"recall"</span>: 0.62, ... },
+  <span class="s">"replay_id"</span>: <span class="s">"ep_a7f2b3c4"</span>
+}
+
+{
+  <span class="s">"type"</span>: <span class="s">"incident_alert"</span>,                     <span class="c"># Expert mode only</span>
+  <span class="s">"incident"</span>: { <span class="s">"type"</span>: <span class="s">"unauthorized_access"</span>, <span class="s">"records_affected"</span>: 50000, ... },
+  <span class="s">"message"</span>: <span class="s">"⚠ BREACH ALERT: Unauthorized DB access detected"</span>
+}</div>
+</div>
+
+
+<!-- SECTION 7 -->
+<div class="section">
+  <div class="section-label"><div class="section-num">07</div> Backend</div>
+  <h2>FastAPI Backend <span class="accent">Design</span></h2>
+
+  <h3><span class="dot">●</span> All Endpoints</h3>
+
+  <div class="card">
+    <div class="card-title"><div class="card-dot teal"></div> OpenEnv Required Endpoints</div>
+    <div class="endpoint">
+      <div class="method post">POST</div>
+      <div><div class="endpoint-path">/reset?task_name=easy&amp;seed=42</div><div class="endpoint-desc">Start a new episode. Creates a session, loads task, returns initial ARIAObservation. Session ID in response for WebSocket connection.</div></div>
+    </div>
+    <div class="endpoint">
+      <div class="method post">POST</div>
+      <div><div class="endpoint-path">/step</div><div class="endpoint-desc">Submit an ARIAAction. Returns {observation, reward, done, info}. Also emits a WebSocket event to all subscribers of this session.</div></div>
+    </div>
+    <div class="endpoint">
+      <div class="method get">GET</div>
+      <div><div class="endpoint-path">/state</div><div class="endpoint-desc">Current observation without advancing. Requires X-Session-ID header.</div></div>
+    </div>
+    <div class="endpoint">
+      <div class="method get">GET</div>
+      <div><div class="endpoint-path">/tasks</div><div class="endpoint-desc">All available tasks + action schema (JSON Schema of ARIAAction). Includes generated task count.</div></div>
+    </div>
+    <div class="endpoint">
+      <div class="method post">POST</div>
+      <div><div class="endpoint-path">/grader</div><div class="endpoint-desc">Score the completed episode. Returns full breakdown: precision, recall, F1, evidence_score, severity_accuracy, remediation_score.</div></div>
+    </div>
+    <div class="endpoint">
+      <div class="method post">POST</div>
+      <div><div class="endpoint-path">/baseline</div><div class="endpoint-desc">Trigger baseline inference on all 3+ tasks. Returns cached results if available, otherwise runs the script. Timeout: 300s.</div></div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:16px;">
+    <div class="card-title"><div class="card-dot purple"></div> ARIA-Extended Endpoints (Bonus Points)</div>
+    <div class="endpoint">
+      <div class="method post">POST</div>
+      <div><div class="endpoint-path">/generate?difficulty=hard&amp;seed=1234&amp;frameworks=GDPR,CCPA</div><div class="endpoint-desc">Procedurally generate a new task. Cached for reproducibility. Returns task_id for use with /reset.</div></div>
+    </div>
+    <div class="endpoint">
+      <div class="method get">GET</div>
+      <div><div class="endpoint-path">/replay/{episode_id}</div><div class="endpoint-desc">Full episode replay: all observations, actions, rewards, agent reasoning at each step.</div></div>
+    </div>
+    <div class="endpoint">
+      <div class="method get">GET</div>
+      <div><div class="endpoint-path">/leaderboard</div><div class="endpoint-desc">All stored baseline results, sortable by task/score/model. Powers the frontend leaderboard page.</div></div>
+    </div>
+    <div class="endpoint">
+      <div class="method get">GET</div>
+      <div><div class="endpoint-path">/ws/{session_id}</div><div class="endpoint-desc">WebSocket connection. Streams ARIAEvent objects in real-time during episode execution.</div></div>
+    </div>
+    <div class="endpoint">
+      <div class="method get">GET</div>
+      <div><div class="endpoint-path">/frameworks</div><div class="endpoint-desc">Full spec of all supported regulatory frameworks: articles, requirements, timelines. Useful for building agents.</div></div>
+    </div>
+  </div>
+
+  <h3><span class="dot">●</span> Session Management</h3>
+  <p>Because multiple judges (and Phase 2's Nemotron) may run episodes simultaneously, the backend uses a per-session environment pattern. Each <code>/reset</code> call creates a new session ID and a new <code>ARIAEnv</code> instance, stored in memory. Sessions expire after 30 minutes of inactivity.</p>
+
+  <div class="code"><span class="k">class</span> <span class="fn">SessionManager</span>:
+  <span class="k">def</span> <span class="fn">__init__</span>(self):
+    self._sessions: dict[str, ARIASession] = {}
+    self._lock = asyncio.Lock()
+  
+  <span class="k">async def</span> <span class="fn">create_session</span>(self, task_name: str, seed: int | None) -> str:
+    <span class="k">async with</span> self._lock:
+      session_id = str(uuid.uuid4())[:8]
+      env = ARIAEnv()
+      obs = env.reset(task_name=task_name, seed=seed)
+      self._sessions[session_id] = ARIASession(
+        env=env, created_at=datetime.utcnow(), last_active=datetime.utcnow()
+      )
+      <span class="k">return</span> session_id, obs
+  
+  <span class="k">async def</span> <span class="fn">step</span>(self, session_id: str, action: ARIAAction):
+    session = self._get_active(session_id)
+    result = session.env.step(action)
+    session.last_active = datetime.utcnow()
+    
+    <span class="c"># Emit WebSocket event</span>
+    <span class="k">await</span> ws_manager.broadcast(session_id, result.to_ws_event())
+    
+    <span class="c"># Persist step to SQLite</span>
+    <span class="k">await</span> db.log_step(session_id, action, result)
+    
+    <span class="k">return</span> result</div>
+</div>
+
+
+<!-- SECTION 8 -->
+<div class="section">
+  <div class="section-label"><div class="section-num">08</div> Baseline Agent</div>
+  <h2>AI/ML Baseline <span class="accent">Agent</span></h2>
+
+  <h3><span class="dot">●</span> Agent Design Philosophy</h3>
+  <p>The baseline agent uses GPT-4o-mini with <strong>structured outputs</strong> (JSON mode), <strong>temperature=0</strong>, and <strong>seed=42</strong> for full reproducibility. The key design decision: the agent maintains a <em>reasoning chain</em> as part of its conversation history, so each step is informed by everything it has done. The agent prompt teaches it the correct audit workflow.</p>
+
+  <div class="code"><span class="c"># baseline/prompts.py</span>
+SYSTEM_PROMPT = <span class="s">"""
+You are a senior compliance auditor AI. You review regulatory documents
+and identify compliance gaps with precision and evidence.
+
+YOUR WORKFLOW (follow this order):
+1. READ FIRST: Use request_section to read each document section
+2. IDENTIFY GAPS: For each gap, specify clause_ref + gap_type + severity + description  
+3. CITE EVIDENCE: Follow each identify_gap with cite_evidence (exact passage text)
+4. REMEDIATE: Submit practical remediation_text for each confirmed gap
+5. ESCALATE CONFLICTS: If two frameworks disagree, use escalate_conflict
+6. FINALIZE: submit_final_report when done or low on steps
+
+SCORING TIPS (these directly affect your score):
+- False positives cost you -0.10 each. Only flag what you're confident about.
+- Evidence citations are worth +0.12. Always cite after identifying a gap.
+- Correct severity (high/medium/low) gives +0.05 bonus.
+- Be efficient: you get a bonus for finishing early with high accuracy.
+
+REGULATORY FRAMEWORKS IN SCOPE:
+{regulatory_context}
+
+CURRENT STATUS:
+- Steps remaining: {steps_remaining}
+- Active findings: {findings_count}
+- Cumulative reward: {cumulative_reward:.2f}
+
+Respond with exactly ONE JSON action object.
+"""</span></div>
+
+  <h3><span class="dot">●</span> Multi-Pass Agent (Advanced)</h3>
+  <p>The baseline also includes an advanced <code>MultiPassAgent</code> that demonstrates a smarter strategy: first pass reads all sections, second pass identifies gaps with evidence, third pass submits remediations. This consistently scores higher and shows Phase 2 judges that the environment genuinely benefits from strategic planning.</p>
+
+  <div class="code"><span class="k">class</span> <span class="fn">MultiPassAgent</span>:
+  <span class="s">"""
+  Demonstrates curriculum behavior:
+  Phase 1 (steps 1–N/3): Request all sections systematically
+  Phase 2 (steps N/3–2N/3): Identify gaps with evidence citations
+  Phase 3 (steps 2N/3–N): Submit remediations + final report
+  """</span>
+  
+  <span class="k">def</span> <span class="fn">act</span>(self, obs: ARIAObservation) -> ARIAAction:
+    step = obs.steps_taken
+    total = obs.steps_taken + obs.steps_remaining
+    
+    <span class="k">if</span> step < total * 0.35:
+      <span class="k">return</span> self._reading_phase(obs)
+    <span class="k">elif</span> step < total * 0.70:
+      <span class="k">return</span> self._auditing_phase(obs)
+    <span class="k">else</span>:
+      <span class="k">return</span> self._remediation_phase(obs)</div>
+
+  <h3><span class="dot">●</span> Expected Baseline Scores</h3>
+  <p>These are the numbers you'll print in your README. Run these before submission to get real values. The spread is what matters — judges want to see that Hard genuinely challenges the model.</p>
+
+  <table>
+    <thead>
+      <tr><th>Model</th><th>Easy</th><th>Medium</th><th>Hard</th><th>Expert</th><th>Average</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><strong>gpt-4o-mini (baseline)</strong></td><td><span style="color:var(--green)">0.87</span></td><td><span style="color:var(--amber2)">0.63</span></td><td><span style="color:var(--coral2)">0.44</span></td><td><span style="color:var(--coral2)">0.28</span></td><td>0.56</td></tr>
+      <tr><td>MultiPass agent</td><td><span style="color:var(--green)">0.94</span></td><td><span style="color:var(--amber2)">0.71</span></td><td><span style="color:var(--coral2)">0.52</span></td><td><span style="color:var(--coral2)">0.33</span></td><td>0.63</td></tr>
+      <tr><td>Random agent</td><td>0.15</td><td>0.09</td><td>0.04</td><td>0.02</td><td>0.08</td></tr>
+    </tbody>
+  </table>
+
+  <div class="callout teal">
+    <div class="callout-title">Why This Score Spread Wins</div>
+    <p style="margin:0; color:var(--text2);">The 0.87 → 0.28 difficulty spread across 4 tiers is the proof that your environment provides meaningful signal. It shows judges: Easy is learnable, Hard is genuinely hard, Expert pushes frontier models. A flat score (0.8 across all tiers) would signal a broken grader. This spread earns near-perfect marks on "Task & grader quality (25%)".</p>
+  </div>
+</div>
+
+
+<!-- SECTION 9 -->
+<div class="section">
+  <div class="section-label"><div class="section-num">09</div> Deployment</div>
+  <h2>Deployment <span class="accent">Strategy</span></h2>
+
+  <h3><span class="dot">●</span> Dockerfile (Multi-Stage Build)</h3>
+  <p>The Dockerfile does three things: builds the React frontend, installs the Python backend, and serves everything from a single container on port 7860. The React build output is served as static files by FastAPI's StaticFiles middleware — no separate nginx needed.</p>
+
+  <div class="code"><span class="c"># Stage 1: Build React frontend</span>
+FROM node:20-slim <span class="k">AS</span> frontend-builder
+WORKDIR /app/frontend
+COPY frontend/package*.json ./
+RUN npm ci
+COPY frontend/ .
+RUN npm run build               <span class="c"># outputs to /app/frontend/dist</span>
+
+<span class="c"># Stage 2: Python backend + frontend static files</span>
+FROM python:3.11-slim
+WORKDIR /app
+
+<span class="c"># Python deps</span>
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+<span class="c"># App code</span>
+COPY aria/ ./aria/
+COPY api/ ./api/
+COPY tasks/ ./tasks/
+COPY baseline/ ./baseline/
+COPY openenv.yaml .
+
+<span class="c"># Copy built React app</span>
+COPY --from=frontend-builder /app/frontend/dist ./static/
+
+<span class="c"># Expose HF Spaces port</span>
+EXPOSE 7860
+
+<span class="c"># Health check</span>
+HEALTHCHECK --interval=30s --timeout=10s CMD curl -f http://localhost:7860/health || exit 1
+
+<span class="c"># Start server</span>
+CMD [<span class="s">"uvicorn"</span>, <span class="s">"api.app:app"</span>, <span class="s">"--host"</span>, <span class="s">"0.0.0.0"</span>, <span class="s">"--port"</span>, <span class="s">"7860"</span>]</div>
+
+  <div class="code"><span class="c"># api/app.py — serve React app + API from single FastAPI instance</span>
+<span class="k">from</span> fastapi <span class="k">import</span> FastAPI
+<span class="k">from</span> fastapi.staticfiles <span class="k">import</span> StaticFiles
+<span class="k">from</span> fastapi.responses <span class="k">import</span> FileResponse
+<span class="k">import</span> os
+
+app = FastAPI(title=<span class="s">"ARIA"</span>, version=<span class="s">"1.0.0"</span>)
+
+<span class="c"># Mount API routes first (order matters)</span>
+app.include_router(openenv_router, prefix=<span class="s">""</span>)
+app.include_router(aria_router, prefix=<span class="s">/aria</span>)
+
+<span class="c"># Serve React static files</span>
+<span class="k">if</span> os.path.exists(<span class="s">"static"</span>):
+  app.mount(<span class="s">"/_assets"</span>, StaticFiles(directory=<span class="s">"static/assets"</span>), name=<span class="s">"assets"</span>)
+  
+  <span class="c"># Catch-all: serve React index.html for any non-API route</span>
+  <span class="k">@app.get("/{full_path:path}"</span>)
+  <span class="k">async def</span> <span class="fn">serve_react</span>(full_path: str):
+    <span class="k">if</span> not full_path.startswith((<span class="s">"reset"</span>, <span class="s">"step"</span>, <span class="s">"state"</span>, <span class="s">"tasks"</span>, <span class="s">"grader"</span>, <span class="s">"baseline"</span>)):
+      <span class="k">return</span> FileResponse(<span class="s">"static/index.html"</span>)
+    <span class="k">raise</span> HTTPException(404)</div>
+
+  <h3><span class="dot">●</span> Common Deployment Gotchas</h3>
+
+  <table>
+    <thead><tr><th>Issue</th><th>Cause</th><th>Fix</th></tr></thead>
+    <tbody>
+      <tr><td><strong>WebSocket 403 on HF Spaces</strong></td><td>HF Spaces proxies WSS differently</td><td>Use <code>wss://</code> (not <code>ws://</code>), ensure CORS allows all origins during testing</td></tr>
+      <tr><td><strong>React 404 on page refresh</strong></td><td>React Router routes not handled by server</td><td>The catch-all <code>/{full_path:path}</code> route serves index.html for all non-API paths</td></tr>
+      <tr><td><strong>SQLite write error on HF Spaces</strong></td><td>HF Spaces filesystem may be read-only</td><td>Write DB to <code>/tmp/aria.db</code> (writable). Set <code>DATABASE_URL=/tmp/aria.db</code> env var</td></tr>
+      <tr><td><strong>openenv validate fails</strong></td><td>Missing field in openenv.yaml or wrong endpoint path</td><td>Run <code>openenv validate</code> locally before pushing. Check all 6 endpoints respond</td></tr>
+      <tr><td><strong>OPENAI_API_KEY not found</strong></td><td>Not set in HF Space secrets</td><td>HF Space → Settings → Repository Secrets → add OPENAI_API_KEY</td></tr>
+      <tr><td><strong>Vite build references /assets</strong></td><td>Base path mismatch</td><td>Set <code>base: '/'</code> in vite.config.ts and serve from <code>static/assets</code></td></tr>
+    </tbody>
+  </table>
+
+  <h3><span class="dot">●</span> openenv.yaml (Critical — Judges Validate This)</h3>
+
+  <div class="code"><span class="c"># openenv.yaml</span>
+name: aria-compliance-env
+version: <span class="s">"1.0.0"</span>
+description: >
+  Agentic Regulatory Intelligence Architecture. The first multi-framework
+  compliance RL environment supporting GDPR, HIPAA, CCPA, and SOC2. 
+  Features procedural scenario generation, evidence chain validation,
+  incident response simulation, and a live React monitoring dashboard.
+
+author: <span class="s">"Your Name"</span>
+license: MIT
+tags:
+  - compliance
+  - document-review
+  - multi-framework
+  - legal-ai
+  - gdpr
+  - hipaa
+  - evidence-chain
+  - procedural-generation
+  - openenv
+
+environment:
+  type: text
+  observation_type: structured
+  action_type: structured
+  reward_type: dense
+  episode_type: finite
+
+tasks:
+  - id: easy
+    name: <span class="s">"Basic GDPR Audit"</span>
+    difficulty: easy
+    max_steps: 15
+  - id: medium
+    name: <span class="s">"Cross-Framework Review"</span>
+    difficulty: medium
+    max_steps: 25
+  - id: hard
+    name: <span class="s">"Multi-Framework Conflict Resolution"</span>
+    difficulty: hard
+    max_steps: 40
+  - id: expert
+    name: <span class="s">"Incident Response Suite"</span>
+    difficulty: hard
+    max_steps: 60
+
+endpoints:
+  reset: /reset
+  step: /step
+  state: /state
+  tasks: /tasks
+  grader: /grader
+  baseline: /baseline
+
+models:
+  observation: ARIAObservation
+  action: ARIAAction
+  reward: ARIAReward
+
+baseline:
+  model: gpt-4o-mini
+  reproducible: true
+  seed: 42</div>
+</div>
+
+
+<!-- SECTION 10 -->
+<div class="section">
+  <div class="section-label"><div class="section-num">10</div> Execution Plan</div>
+  <h2>Day-by-Day <span class="accent">Execution Plan</span></h2>
+
+  <div class="callout amber">
+    <div class="callout-title">⏱ Total Build Time: ~20–25 focused hours</div>
+    <p style="margin:0; color:var(--text2);">Split across 6 days. Each day has a clear deliverable. Do not skip Day 1 (models) — everything downstream depends on clean Pydantic models. Do not skip Day 5 (run baseline) — judges expect real numbers in your README, not "TBD".</p>
+  </div>
+
+  <div class="timeline">
+    <div class="tl-item">
+      <div class="tl-dot"></div>
+      <div class="tl-day">Day 1 — 4 hours</div>
+      <div class="tl-title">Foundation: Models + Task Data</div>
+      <div class="tl-desc">
+        Write all Pydantic models in <code>aria/models.py</code>: ARIAObservation, ARIAAction, ARIAReward, Finding, Document, EvidenceCitation, Incident, RegulatoryContext. Write the 4 static task JSON files (easy, medium, hard, expert) with ground truth gaps. Write <code>aria/frameworks.py</code> with GDPR/HIPAA/CCPA/SOC2 rule specs. <strong>Deliverable: all models pass validation, task files exist.</strong>
+      </div>
+    </div>
+    <div class="tl-item">
+      <div class="tl-dot teal"></div>
+      <div class="tl-day teal">Day 2 — 5 hours</div>
+      <div class="tl-title">Core Environment: env + reward + grader</div>
+      <div class="tl-desc">
+        Implement <code>aria/environment.py</code>: full reset(), step(), state(), grade() with session state management. Implement <code>aria/reward_engine.py</code>: all reward cases including spam detection and phase awareness. Implement <code>aria/grader.py</code>: F1 + evidence + severity + remediation scoring. Implement <code>aria/evidence.py</code>: passage fuzzy matching. Write unit tests for all three. <strong>Deliverable: <code>pytest tests/</code> passes 100%.</strong>
+      </div>
+    </div>
+    <div class="tl-item">
+      <div class="tl-dot teal"></div>
+      <div class="tl-day teal">Day 3 — 4 hours</div>
+      <div class="tl-title">FastAPI Backend + WebSocket</div>
+      <div class="tl-desc">
+        Implement all 10 API endpoints. Implement <code>api/session.py</code> SessionManager. Implement <code>api/websocket.py</code> WebSocket event broadcaster. Write the procedural generator stub (<code>aria/generator.py</code>) — it can use simple templates first, LLM generation added last. Test all endpoints with curl/HTTPie. <strong>Deliverable: <code>openenv validate</code> passes locally.</strong>
+      </div>
+    </div>
+    <div class="tl-item">
+      <div class="tl-dot amber"></div>
+      <div class="tl-day amber">Day 4 — 5 hours</div>
+      <div class="tl-title">React Frontend</div>
+      <div class="tl-desc">
+        Bootstrap with <code>npm create vite@latest frontend -- --template react-ts</code>. Install: tailwindcss, recharts, react-router-dom. Build the 4 main pages: Dashboard (live monitor with WebSocket hook + RewardChart), TaskExplorer, EpisodeReplay (static replay first), Leaderboard. The dashboard is the priority — it's what judges see first. Use dark theme matching the design shown. <strong>Deliverable: frontend builds cleanly, connects to local backend, shows live episode.</strong>
+      </div>
+    </div>
+    <div class="tl-item">
+      <div class="tl-dot amber"></div>
+      <div class="tl-day amber">Day 5 — 3 hours</div>
+      <div class="tl-title">Baseline Agent + Real Numbers</div>
+      <div class="tl-desc">
+        Write <code>baseline/agent.py</code> and <code>baseline/run_baseline.py</code>. Run it locally on all 4 tasks. Record real scores. Update README with actual numbers. Write the MultiPass agent variant. <strong>Deliverable: baseline_results.json exists with real scores. README has actual numbers.</strong>
+      </div>
+    </div>
+    <div class="tl-item">
+      <div class="tl-dot"></div>
+      <div class="tl-day">Day 6 — 3 hours</div>
+      <div class="tl-title">Docker + HF Space + Final Polish</div>
+      <div class="tl-desc">
+        Write Dockerfile (multi-stage). Run <code>docker build && docker run -p 7860:7860</code> locally. Verify all endpoints, WebSocket, and frontend work in container. Push to Hugging Face Spaces. Set OPENAI_API_KEY secret. Test live deployment. Final README polish. Tag space with <code>openenv</code>. Run <code>openenv validate</code> against live URL. <strong>Deliverable: live URL responds, all checks green, submission ready.</strong>
+      </div>
+    </div>
+  </div>
+
+  <h3><span class="dot">●</span> Pre-Submission Final Checklist</h3>
+
+  <div class="card">
+    <ul class="checklist">
+      <li><div class="check"></div><strong>openenv validate passes</strong> against live HF Space URL</li>
+      <li><div class="check"></div><strong>docker build && docker run</strong> works from cold start with no extra setup</li>
+      <li><div class="check"></div><strong>All 6 required endpoints respond</strong> (reset/step/state/tasks/grader/baseline)</li>
+      <li><div class="check"></div><strong>4 tasks each return scores 0.0–1.0</strong> from the grader</li>
+      <li><div class="check"></div><strong>Grader is deterministic</strong> — same input always returns same score</li>
+      <li><div class="check"></div><strong>baseline_results.json</strong> exists and has real scores (not made-up)</li>
+      <li><div class="check"></div><strong>OPENAI_API_KEY read from env variable</strong> — not hardcoded anywhere</li>
+      <li><div class="check"></div><strong>WebSocket connects and streams events</strong> from the dashboard</li>
+      <li><div class="check"></div><strong>Hard task score &lt; 0.60 for GPT-4o-mini</strong> — meaningful challenge</li>
+      <li><div class="check"></div><strong>README has: motivation, action space table, baseline scores table</strong></li>
+      <li><div class="check"></div><strong>HF Space is public and tagged</strong> <code>openenv</code></li>
+      <li><div class="check"></div><strong>tests/ directory exists</strong> and at minimum test_graders.py passes</li>
+      <li><div class="check"></div><strong>git log shows meaningful commits</strong> (minimum 5-6 commits across days)</li>
+      <li><div class="check"></div><strong>SQLite writes to /tmp/</strong> (HF Spaces filesystem writable path)</li>
+      <li><div class="check"></div><strong>React app visible at /</strong> — judges see the dashboard, not a blank page</li>
+    </ul>
+  </div>
+
+  <h3><span class="dot">●</span> The README Opening That Wins</h3>
+
+  <div class="code"><span class="c"># ARIA — Agentic Regulatory Intelligence Architecture</span>
+
+<span class="c">[![OpenEnv](badge)] [![Live Demo](badge)] [![License: MIT](badge)]</span>
+
+<span class="s">GDPR fines in 2023 totalled €1.78 billion.</span>
+<span class="s">Manual compliance audits cost $500–$1,500/hour for senior legal counsel.</span>
+<span class="s">85% of that work is systematic pattern-matching — exactly what LLM agents excel at.</span>
+
+ARIA is the first RL environment for training and benchmarking AI agents
+on regulatory compliance auditing across multiple frameworks simultaneously.
+
+Unlike existing document QA benchmarks, ARIA models the full audit workflow:
+read strategically → identify violations with evidence → resolve cross-framework
+conflicts → respond to live incidents — all scored against deterministic ground truth.
+
+<span class="c">## Live Demo</span>
+<span class="s">→ Watch a GPT-4o-mini agent audit a GDPR document in real-time: [HF Space URL]</span>
+
+<span class="c">## Baseline Scores</span>
+| Task       | Difficulty | GPT-4o-mini | MultiPass |
+|------------|-----------|-------------|-----------|
+| GDPR Basic | Easy      | 0.87        | 0.94      |
+| Cross-Doc  | Medium    | 0.63        | 0.71      |
+| Multi-Fw   | Hard      | 0.44        | 0.52      |
+| Incident   | Expert    | 0.28        | 0.33      |
+
+The 0.87 → 0.28 spread ensures meaningful signal even for frontier models.
+Hard tasks require multi-document relational reasoning, cross-framework
+conflict resolution, and real-time incident response simultaneously.</div>
+</div>
+
+
+<!-- FINAL SECTION: Bonus Ideas -->
+<div class="section">
+  <div class="section-label"><div class="section-num">★</div> Bonus</div>
+  <h2>Advanced Features That <span class="accent">Separate Top 1%</span></h2>
+
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-title"><div class="card-dot purple"></div> Curriculum Learning Hook</div>
+      <p style="font-size:13px; margin:0;">Include a <code>CurriculumScheduler</code> class that auto-advances difficulty based on rolling average score. If 5-episode avg &gt; 0.80 on Easy → move to Medium. Below 0.40 on Hard → fall back. This is a 50-line class that signals serious RL knowledge to judges and is directly useful for teams training agents.</p>
+    </div>
+    <div class="card">
+      <div class="card-title"><div class="card-dot teal"></div> Adversarial Multi-Agent Mode</div>
+      <p style="font-size:13px; margin:0;">In <code>/aria/multi_agent</code>, include a stub <code>AdversarialAuditorEnv</code> where Agent A finds gaps and Agent B challenges them. B scores points for correctly identifying A's false positives. A scores points for surviving B's challenges. Include in README as "experimental" — it shows architectural vision beyond the competition brief.</p>
+    </div>
+    <div class="card">
+      <div class="card-title"><div class="card-dot amber"></div> Temporal Compliance Decay</div>
+      <p style="font-size:13px; margin:0;">Each generated task has a <code>scenario_date</code>. Some regulations have phase-in periods (e.g. CCPA enforcement started Jan 2020, CPRA amendments Jan 2023). The agent must reason about which version of a regulation was in force on the document's date. This is genuinely novel and has no equivalent in existing RL environments.</p>
+    </div>
+    <div class="card">
+      <div class="card-title"><div class="card-dot coral"></div> Continuous Improvement Mode</div>
+      <p style="font-size:13px; margin:0;">Add a <code>/simulate_training</code> endpoint that runs 10 episodes with random seeds and returns a learning curve (score vs episode number). Pre-computed with the baseline agent and cached. Shows judges what RL training on ARIA actually looks like — evidence of real-world utility beyond a one-shot benchmark.</p>
+    </div>
+  </div>
+
+  <div class="callout" style="margin-top:28px;">
+    <div class="callout-title">🏆 Final Thought</div>
+    <p style="margin:0; color:var(--text2);">When a Meta engineer opens your HF Space, they should see a beautiful live dashboard, try the demo, realize they could actually use this to evaluate their compliance agents, and immediately check the README for how to install it. That's the "wow" moment. The technical quality (typed models, clean architecture, OpenEnv compliance) earns you the score. The dashboard earns you the story. The difficulty spread earns you their trust. <strong style="color:var(--purple2);">Build all three. You'll win.</strong></p>
+  </div>
+</div>
+
+</div>
+
+<div class="footer">
+  <strong>ARIA Implementation Bible</strong> · Meta × Hugging Face OpenEnv Hackathon ·
+  <span style="margin-left:8px; color:var(--text3);">Execute section by section. Every line earns you points. Go win.</span>
+</div>
+
+</body>
+</html>
