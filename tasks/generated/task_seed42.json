@@ -1,0 +1,147 @@
+{
+  "task_id": "gen_seed42",
+  "difficulty": "medium",
+  "title": "Procedurally Generated — FinTrack Analytics (seed=42)",
+  "company_profile": {
+    "name": "FinTrack Analytics",
+    "industry": "FinTech SaaS (Personal Finance)",
+    "size": "60 employees",
+    "data_types": ["financial_records", "consumer_pii", "transaction_history", "device_identifiers"],
+    "operates_in": ["EU", "California", "US"]
+  },
+  "frameworks_in_scope": ["GDPR", "CCPA"],
+  "applicable_articles": {
+    "GDPR": ["Article 5(1)(b)", "Article 5(1)(e)", "Article 7", "Article 33", "Article 44"],
+    "CCPA": ["1798.100", "1798.120", "1798.135"]
+  },
+  "documents": [
+    {
+      "doc_id": "privacy_notice",
+      "title": "FinTrack Privacy Notice v2.0",
+      "sections": [
+        {
+          "section_id": "s1",
+          "title": "What We Collect",
+          "content": "FinTrack collects your name, email address, bank account details (read-only), transaction history, income estimates, and spending category classifications. We also collect device identifiers and location data when you use our mobile app. We collect everything available to give you the best financial insights.",
+          "subsections": []
+        },
+        {
+          "section_id": "s2",
+          "title": "Why We Collect It",
+          "content": "We use your data to: (1) provide personal finance dashboards, (2) generate spending insights, (3) improve and train our recommendation algorithms, (4) send you marketing communications, and (5) share with financial partners for personalised offers. All these uses are covered by your acceptance of our Terms of Service.",
+          "subsections": []
+        },
+        {
+          "section_id": "s3",
+          "title": "How Long We Keep It",
+          "content": "We retain your financial transaction data for 7 years to comply with financial recordkeeping requirements. Personal profile data is kept for 12 months after account deletion. Device and analytics data is retained indefinitely for product improvement purposes.",
+          "subsections": []
+        },
+        {
+          "section_id": "s4",
+          "title": "International Transfers",
+          "content": "FinTrack is headquartered in San Francisco. EU user data is stored and processed in our US data centres. We ensure your data is handled with care by our engineering teams.",
+          "subsections": []
+        },
+        {
+          "section_id": "s5",
+          "title": "Your California Rights",
+          "content": "California residents have the right to know what personal information we collect, to delete it, and to opt out of its sale. We share transaction data with financial partners which may constitute 'sale' under CCPA. To opt out, email privacy@fintrack.io.",
+          "subsections": []
+        },
+        {
+          "section_id": "s6",
+          "title": "Security and Breaches",
+          "content": "We use bank-grade encryption and security practices. If a breach occurs, we will assess the situation and notify users and authorities as legally required within a reasonable timeframe.",
+          "subsections": []
+        }
+      ]
+    }
+  ],
+  "ground_truth": {
+    "gaps": [
+      {
+        "gap_id": "gap_1",
+        "clause_ref": "privacy_notice.s1",
+        "gap_type": "data_minimization",
+        "severity": "medium",
+        "framework": "GDPR",
+        "article": "Article 5(1)(c)",
+        "description": "'We collect everything available' directly violates the data minimization principle. Collection must be limited to what is adequate, relevant, and necessary for specified purposes.",
+        "evidence_passage": "We collect everything available to give you the best financial insights.",
+        "evidence_location": "privacy_notice.s1",
+        "canonical_remediation_keywords": ["limited to", "only collect", "necessary for", "minimum necessary", "specific fields", "data minimization"]
+      },
+      {
+        "gap_id": "gap_2",
+        "clause_ref": "privacy_notice.s2",
+        "gap_type": "consent_mechanism",
+        "severity": "high",
+        "framework": "GDPR",
+        "article": "Article 7",
+        "description": "Consent bundled into Terms of Service acceptance is not freely given, specific, informed, and unambiguous consent as required by Article 7. Marketing and partner sharing require separate opt-in consent.",
+        "evidence_passage": "All these uses are covered by your acceptance of our Terms of Service.",
+        "evidence_location": "privacy_notice.s2",
+        "canonical_remediation_keywords": ["explicit consent", "separate consent", "opt-in", "freely given", "withdrawable", "prior to processing", "granular"]
+      },
+      {
+        "gap_id": "gap_3",
+        "clause_ref": "privacy_notice.s3",
+        "gap_type": "data_retention",
+        "severity": "high",
+        "framework": "GDPR",
+        "article": "Article 5(1)(e)",
+        "description": "Device and analytics data retained 'indefinitely' violates storage limitation. All categories must have a defined maximum retention period regardless of purpose.",
+        "evidence_passage": "Device and analytics data is retained indefinitely for product improvement purposes.",
+        "evidence_location": "privacy_notice.s3",
+        "canonical_remediation_keywords": ["maximum retention period", "delete after", "indefinitely is prohibited", "specific period", "no longer than necessary"]
+      },
+      {
+        "gap_id": "gap_4",
+        "clause_ref": "privacy_notice.s4",
+        "gap_type": "cross_border_transfer",
+        "severity": "high",
+        "framework": "GDPR",
+        "article": "Article 44",
+        "description": "'Handled with care by engineering teams' is not a valid transfer mechanism under Chapter V GDPR. Standard Contractual Clauses or adequacy decision required for EU-US transfers.",
+        "evidence_passage": "We ensure your data is handled with care by our engineering teams.",
+        "evidence_location": "privacy_notice.s4",
+        "canonical_remediation_keywords": ["standard contractual clauses", "adequacy decision", "appropriate safeguards", "Article 46", "transfer mechanism"]
+      },
+      {
+        "gap_id": "gap_5",
+        "clause_ref": "privacy_notice.s5",
+        "gap_type": "opt_out_mechanism",
+        "severity": "high",
+        "framework": "CCPA",
+        "article": "1798.135",
+        "description": "Selling/sharing transaction data with financial partners requires a 'Do Not Sell or Share My Personal Information' link on the homepage. Email-only opt-out does not satisfy CCPA 1798.135.",
+        "evidence_passage": "We share transaction data with financial partners which may constitute 'sale' under CCPA. To opt out, email privacy@fintrack.io.",
+        "evidence_location": "privacy_notice.s5",
+        "canonical_remediation_keywords": ["Do Not Sell or Share", "homepage link", "automated opt-out", "1798.135", "clear and conspicuous"]
+      }
+    ],
+    "red_herrings": [
+      {
+        "clause_ref": "privacy_notice.s3",
+        "reason_not_a_gap_for": "7-year financial transaction retention",
+        "reason_not_a_gap": "7-year financial record retention satisfies both regulatory recordkeeping requirements and is a valid exception under Article 6(1)(c) legal obligation. Only the 'indefinitely' analytics retention is the gap."
+      }
+    ],
+    "conflicts": [
+      {
+        "conflict_id": "conflict_1",
+        "framework_a": "GDPR",
+        "framework_b": "CCPA",
+        "description": "GDPR requires opt-in consent for sharing data with financial partners (Article 6/7). CCPA operates on opt-out. A user who hasn't opted out under CCPA may still lack GDPR consent. Policy must apply opt-in for EU users.",
+        "governing_clause": "privacy_notice.s2",
+        "resolution": "Implement jurisdiction detection: EU users get opt-in consent flow before partner data sharing; California users get opt-out mechanism per CCPA."
+      }
+    ]
+  },
+  "incident": null,
+  "max_steps": 25,
+  "seed": 42,
+  "is_generated": true,
+  "_note": "This is a sample cached generated task. The ProceduralGenerator creates tasks like this dynamically using GPT-4o-mini with seed control."
+}
