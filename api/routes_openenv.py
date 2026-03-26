@@ -1,0 +1,195 @@
+"""ARIA — FastAPI Routes (OpenEnv required + ARIA extended)"""
+from __future__ import annotations
+import json
+import os
+import asyncio
+from pathlib import Path
+from fastapi import APIRouter, Header, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel
+from aria.models import ARIAAction, ActionType
+from aria.frameworks import FRAMEWORK_REGISTRY
+from api.session import session_manager
+from api.websocket import ws_manager
+
+router = APIRouter()
+TASKS_DIR = Path(__file__).parent.parent / "tasks"
+BASELINE_CACHE = Path(__file__).parent.parent / "baseline" / "baseline_results.json"
+
+
+# ─── Request/Response schemas ─────────────────────────────────────────────────
+
+class ResetRequest(BaseModel):
+    task_name: str = "easy"
+    seed: int = 42
+
+
+class StepRequest(BaseModel):
+    action: ARIAAction
+
+
+class GraderRequest(BaseModel):
+    session_id: str | None = None
+
+
+# ─── POST /reset ──────────────────────────────────────────────────────────────
+
+@router.post("/reset")
+async def reset(req: ResetRequest = None, x_session_id: str = Header(None, alias="X-Session-ID")):
+    if req is None:
+        req = ResetRequest()
+    try:
+        sid, env = session_manager.create(task_name=req.task_name, seed=req.seed)
+        obs = env.state()
+        return obs.model_dump()
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ─── POST /step ───────────────────────────────────────────────────────────────
+
+@router.post("/step")
+async def step(req: StepRequest, x_session_id: str = Header(..., alias="X-Session-ID")):
+    env = session_manager.get(x_session_id)
+    if not env:
+        raise HTTPException(status_code=404, detail=f"Session {x_session_id} not found. Call /reset first.")
+    try:
+        obs, reward, done, info = env.step(req.action)
+        payload = {
+            "observation": obs.model_dump(),
+            "reward": reward,
+            "done": done,
+            "info": info,
+        }
+        # Broadcast to WebSocket subscribers
+        asyncio.create_task(ws_manager.broadcast(x_session_id, {
+            "type": "step",
+            "step_number": obs.steps_taken,
+            "action": req.action.model_dump(),
+            "reward": reward,
+            "reward_reason": obs.last_reward_reason,
+            "observation": obs.model_dump(),
+        }))
+        # Broadcast incident alert if fired this step
+        if obs.active_incident and len(obs.incident_timeline) == 1:
+            asyncio.create_task(ws_manager.broadcast(x_session_id, {
+                "type": "incident_alert",
+                "incident": obs.active_incident.model_dump(),
+                "message": obs.active_incident.description,
+            }))
+        if done:
+            asyncio.create_task(ws_manager.broadcast(x_session_id, {
+                "type": "episode_complete",
+                "session_id": x_session_id,
+            }))
+        return payload
+    except RuntimeError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+# ─── GET /state ───────────────────────────────────────────────────────────────
+
+@router.get("/state")
+async def state(x_session_id: str = Header(..., alias="X-Session-ID")):
+    env = session_manager.get(x_session_id)
+    if not env:
+        raise HTTPException(status_code=404, detail=f"Session {x_session_id} not found.")
+    return env.state().model_dump()
+
+
+# ─── GET /tasks ───────────────────────────────────────────────────────────────
+
+@router.get("/tasks")
+async def list_tasks():
+    tasks = []
+    action_schema = ARIAAction.model_json_schema()
+
+    for difficulty in ["easy", "medium", "hard", "expert"]:
+        task_file = TASKS_DIR / difficulty / "task.json"
+        if task_file.exists():
+            with open(task_file) as f:
+                t = json.load(f)
+            tasks.append({
+                "id": t["task_id"],
+                "name": t["title"],
+                "difficulty": t["difficulty"],
+                "max_steps": t["max_steps"],
+                "frameworks": t["frameworks_in_scope"],
+                "num_gaps": len(t["ground_truth"]["gaps"]),
+                "has_incident": t["incident"] is not None,
+            })
+
+    return {
+        "tasks": tasks,
+        "total": len(tasks),
+        "action_schema": action_schema,
+    }
+
+
+# ─── POST /grader ─────────────────────────────────────────────────────────────
+
+@router.post("/grader")
+async def grader(req: GraderRequest = None, x_session_id: str = Header(None, alias="X-Session-ID")):
+    sid = (req.session_id if req and req.session_id else None) or x_session_id
+    if not sid:
+        raise HTTPException(status_code=400, detail="Provide session_id in body or X-Session-ID header")
+    env = session_manager.get(sid)
+    if not env:
+        raise HTTPException(status_code=404, detail=f"Session {sid} not found.")
+    result = env.grade()
+    return result.model_dump()
+
+
+# ─── POST /baseline ───────────────────────────────────────────────────────────
+
+@router.post("/baseline")
+async def baseline():
+    """Return cached baseline scores, or trigger fresh run if cache missing."""
+    if BASELINE_CACHE.exists():
+        with open(BASELINE_CACHE) as f:
+            return json.load(f)
+    # Return placeholder if baseline not yet run
+    return {
+        "status": "pending",
+        "message": "Run `python baseline/run_baseline.py` to generate baseline scores.",
+        "tasks": ["easy", "medium", "hard", "expert"],
+    }
+
+
+# ─── GET /frameworks ──────────────────────────────────────────────────────────
+
+@router.get("/frameworks")
+async def frameworks():
+    return FRAMEWORK_REGISTRY
+
+
+# ─── WebSocket /ws/{session_id} ───────────────────────────────────────────────
+
+@router.websocket("/ws/{session_id}")
+async def websocket_endpoint(websocket: WebSocket, session_id: str):
+    await ws_manager.connect(session_id, websocket)
+    try:
+        while True:
+            await websocket.receive_text()  # keep connection alive
+    except WebSocketDisconnect:
+        ws_manager.disconnect(session_id, websocket)
+
+
+# ─── GET /leaderboard ─────────────────────────────────────────────────────────
+
+@router.get("/leaderboard")
+async def leaderboard():
+    if BASELINE_CACHE.exists():
+        with open(BASELINE_CACHE) as f:
+            data = json.load(f)
+        return {"entries": data.get("results", []), "source": "baseline_cache"}
+    return {"entries": [], "source": "empty"}
+
+
+# ─── GET /health ──────────────────────────────────────────────────────────────
+
+@router.get("/health")
+async def health():
+    return {"status": "ok", "version": "1.0.0", "active_sessions": session_manager.count()}
