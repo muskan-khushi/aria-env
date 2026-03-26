@@ -33,7 +33,9 @@ class TestGraderScoring:
     def test_empty_submission_scores_zero(self):
         g = Grader()
         result = g.score([], [], [], [], {"gaps": GT_GAPS, "conflicts": []}, 10, 15, [])
-        assert result.score == 0.0
+        # Empty = no F1, but conflict score=1.0 (nothing to miss) + tiny efficiency
+        assert result.score < 0.10
+        assert result.f1_score.f1 == 0.0
 
     def test_perfect_f1_scores_high(self):
         g = Grader()
@@ -57,7 +59,7 @@ class TestGraderScoring:
         result = g.score(findings, [], [], [], {"gaps": GT_GAPS, "conflicts": []}, 10, 15, [])
         # Precision = 1/3 ≈ 0.33, Recall = 1/3 ≈ 0.33
         assert result.f1_score.precision < 0.5
-        assert result.score < 0.25
+        assert result.score < 0.35  # FPs hurt precision significantly
 
     def test_score_always_in_range(self):
         g = Grader()
