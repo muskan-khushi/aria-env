@@ -117,10 +117,11 @@ class TestEnvironmentContract:
     def test_false_positive_negative_reward(self):
         env = ARIAEnv()
         env.reset("easy")
+        # s2 with DATA_SUBJECT_RIGHTS is not a real gap (only consent/retention/breach are real gaps)
         action = ARIAAction(
             action_type=ActionType.IDENTIFY_GAP,
             clause_ref="privacy_policy.s2",
-            gap_type=GapType.DATA_RETENTION,
+            gap_type=GapType.DATA_SUBJECT_RIGHTS,
             severity=Severity.HIGH,
             description="Incorrectly flagging compliant section",
         )
@@ -197,18 +198,22 @@ class TestRewardFunction:
 
     def test_spam_penalty_applied(self):
         env = ARIAEnv()
-        obs = env.reset("easy")
+        env.reset("easy")
         rewards = []
-        for i in range(6):
+        # Use sections/types that are definitely not real gaps in easy task
+        # Real gaps: s3=data_retention, s1=consent_mechanism, s5=breach_notification
+        # Spamming DPO_REQUIREMENT on all sections = all false positives
+        for i in range(1, 7):
             _, r, _, _ = env.step(ARIAAction(
                 action_type=ActionType.IDENTIFY_GAP,
-                clause_ref=f"privacy_policy.s{i+1}",
-                gap_type=GapType.DATA_RETENTION,
+                clause_ref=f"privacy_policy.s{i}",
+                gap_type=GapType.DPO_REQUIREMENT,
                 severity=Severity.HIGH,
-                description="spam",
+                description="spam test",
             ))
             rewards.append(r)
-        # After 3rd false positive in window, extra penalty kicks in
+        # s6 has a real DPO gap — but s1,s2,s3,s4,s5 with dpo_requirement are FPs
+        # After 3 FPs in window, spam penalty applies: should see r <= -0.20
         assert any(r <= -0.20 for r in rewards), f"Spam penalty not applied: {rewards}"
 
     def test_severity_bonus(self):
