@@ -1,0 +1,359 @@
+{
+  "task_id": "expert_1",
+  "difficulty": "expert",
+  "title": "Incident Response Suite — MediCore Health Platform",
+  "company_profile": {
+    "name": "MediCore Health Platform",
+    "industry": "HealthTech SaaS (Patient Data Platform)",
+    "size": "450 employees",
+    "data_types": ["phi", "patient_records", "clinical_notes", "billing_data", "employee_pii", "eu_patient_data"],
+    "operates_in": ["EU", "US", "California", "US healthcare"]
+  },
+  "frameworks_in_scope": ["GDPR", "HIPAA", "CCPA", "SOC2"],
+  "applicable_articles": {
+    "GDPR": ["Article 5(1)(b)", "Article 5(1)(c)", "Article 5(1)(e)", "Article 6", "Article 7", "Article 9", "Article 17", "Article 25", "Article 33", "Article 34", "Article 35", "Article 37", "Article 44"],
+    "HIPAA": ["45 CFR 164.306", "45 CFR 164.308", "45 CFR 164.312", "45 CFR 164.314", "45 CFR 164.404", "45 CFR 164.408", "45 CFR 164.502"],
+    "CCPA": ["1798.100", "1798.105", "1798.120", "1798.121", "1798.130", "1798.135"],
+    "SOC2": ["CC6", "CC7", "A1", "C1"]
+  },
+  "documents": [
+    {
+      "doc_id": "privacy_policy",
+      "title": "MediCore Privacy Policy v4.1",
+      "sections": [
+        {
+          "section_id": "s1",
+          "title": "PHI Collection and HIPAA Compliance",
+          "content": "MediCore processes Protected Health Information (PHI) on behalf of covered entities including hospitals, clinics, and healthcare providers. We act as a Business Associate under HIPAA. All PHI processing is governed by signed Business Associate Agreements with each covered entity client. PHI is processed only as instructed by covered entities.",
+          "subsections": []
+        },
+        {
+          "section_id": "s2",
+          "title": "EU Patient Data — GDPR",
+          "content": "MediCore processes health data from EU residents on behalf of healthcare providers operating in the EU. We act as a Data Processor under GDPR. The legal basis for processing special category health data (Article 9) is explicit consent obtained by the covered healthcare provider. Data transfers from the EU to the US are conducted under Standard Contractual Clauses.",
+          "subsections": []
+        },
+        {
+          "section_id": "s3",
+          "title": "Data Retention",
+          "content": "Patient health records are retained for a minimum of 10 years from last treatment date in compliance with applicable state and federal law. EU patient data is retained for 10 years consistent with healthcare recordkeeping requirements. After the retention period, data is securely destroyed using NIST 800-88 standards.",
+          "subsections": []
+        },
+        {
+          "section_id": "s4",
+          "title": "Data Minimization and Purpose",
+          "content": "MediCore processes only PHI fields required to provide agreed analytics and care coordination services. We do not use patient data for training machine learning models without separate written authorization from the covered entity and, where required, patient consent. Data is processed only for specified healthcare operations purposes.",
+          "subsections": []
+        },
+        {
+          "section_id": "s5",
+          "title": "Access Controls and Authentication",
+          "content": "Access to PHI is restricted by role-based access control. All access is logged. MFA is required for all clinical user accounts. Privileged administrative access requires dual authorization. Access logs are retained for 7 years.",
+          "subsections": []
+        },
+        {
+          "section_id": "s6",
+          "title": "Breach Notification — HIPAA",
+          "content": "In the event of a breach of unsecured PHI, MediCore will notify the covered entity promptly. The covered entity is responsible for notifying affected individuals within 60 days and HHS. For breaches affecting more than 500 individuals in a state, the covered entity must also notify prominent media outlets. MediCore will provide all required information to support the covered entity's notification obligations.",
+          "subsections": []
+        },
+        {
+          "section_id": "s7",
+          "title": "Breach Notification — GDPR",
+          "content": "For breaches involving EU patient data, MediCore will notify the Controller (healthcare provider) within 24 hours of becoming aware. The Controller must notify the relevant Data Protection Authority within 72 hours. MediCore will provide all documentation to support the Controller's notification obligations and will assist in communicating with data subjects where required.",
+          "subsections": []
+        },
+        {
+          "section_id": "s8",
+          "title": "California Consumer Rights",
+          "content": "California residents who are patients of MediCore clients may submit rights requests through the covered entity's patient portal. MediCore does not respond to consumer requests directly as it processes data as a service provider, not a business, under CCPA. Requests are forwarded to the relevant covered entity within 5 days.",
+          "subsections": []
+        },
+        {
+          "section_id": "s9",
+          "title": "Data Protection Officer",
+          "content": "MediCore has appointed a Data Protection Officer (DPO). The DPO is contactable at dpo@medicore.health. The DPO conducts annual DPIAs for high-risk processing activities and liaises with EU supervisory authorities.",
+          "subsections": []
+        },
+        {
+          "section_id": "s10",
+          "title": "Opt-Out and Sensitive Data",
+          "content": "Patient health data is not subject to CCPA sale opt-out as MediCore operates as a service provider. Employee data collected for HR purposes: California employees may opt out of sale of their personal information. MediCore does not sell employee data. There is no automated mechanism for California patients or employees to limit use of sensitive personal information beyond HIPAA patient rights.",
+          "subsections": []
+        }
+      ]
+    },
+    {
+      "doc_id": "security_policy",
+      "title": "MediCore Information Security Policy v3.0",
+      "sections": [
+        {
+          "section_id": "s1",
+          "title": "Availability and Uptime Commitments",
+          "content": "MediCore commits to 99.5% platform availability under our Enterprise SLA. Planned maintenance windows are excluded from SLA calculations. In practice, actual availability has been 97.8% over the last 12 months due to unplanned outages. No SLA credits have been issued as outages fell within maintenance exclusion periods.",
+          "subsections": []
+        },
+        {
+          "section_id": "s2",
+          "title": "Vulnerability Management",
+          "content": "Critical vulnerabilities are patched within 30 days of discovery. High vulnerabilities within 60 days. Medium and low within 90 days. Vulnerability scanning is performed monthly.",
+          "subsections": []
+        },
+        {
+          "section_id": "s3",
+          "title": "Confidentiality Controls",
+          "content": "All patient data is classified as Highly Confidential. Data classification is enforced through DLP tools. Employees with access to PHI sign confidentiality agreements. Data is not shared with unauthorized parties.",
+          "subsections": []
+        },
+        {
+          "section_id": "s4",
+          "title": "Incident Response",
+          "content": "MediCore maintains an Incident Response Plan (IRP) reviewed annually. Security incidents are classified as P1 (critical), P2 (major), P3 (minor). P1 incidents require notification to the CISO within 1 hour and to covered entities within 4 hours. The IRP was last tested 18 months ago.",
+          "subsections": []
+        }
+      ]
+    },
+    {
+      "doc_id": "subprocessor_list",
+      "title": "MediCore Subprocessor and BAA Register",
+      "sections": [
+        {
+          "section_id": "s1",
+          "title": "Cloud Infrastructure",
+          "content": "AWS (primary cloud), Azure (disaster recovery). Both have executed BAAs with MediCore. BAAs reviewed annually.",
+          "subsections": []
+        },
+        {
+          "section_id": "s2",
+          "title": "Analytics Subprocessors",
+          "content": "DataFlow Analytics (ML pipeline), ReportBuilder Inc (dashboards). DataFlow Analytics has not executed a Business Associate Agreement with MediCore as of last audit. DataFlow receives de-identified data only per our data sharing agreement.",
+          "subsections": []
+        },
+        {
+          "section_id": "s3",
+          "title": "Communication Subprocessors",
+          "content": "SendGrid (transactional email), Twilio (SMS notifications). Both subprocessors have executed BAAs. Patient appointment reminders include limited PHI (name, appointment date).",
+          "subsections": []
+        }
+      ]
+    },
+    {
+      "doc_id": "dpia",
+      "title": "Data Protection Impact Assessment — AI Diagnostics Module",
+      "sections": [
+        {
+          "section_id": "s1",
+          "title": "Processing Description",
+          "content": "MediCore's AI Diagnostics module processes patient clinical notes, lab results, and diagnostic images to generate care pathway recommendations for clinicians. The module uses a large language model fine-tuned on historical patient data.",
+          "subsections": []
+        },
+        {
+          "section_id": "s2",
+          "title": "Risk Assessment",
+          "content": "Risk assessment identified: high risk for re-identification of de-identified training data, medium risk for algorithmic bias in care recommendations, high risk for unauthorized access to clinical notes. Mitigations proposed but not yet implemented as of DPIA date.",
+          "subsections": []
+        },
+        {
+          "section_id": "s3",
+          "title": "DPO Consultation",
+          "content": "The DPIA was completed by the compliance team. DPO review was scheduled but has not yet occurred. The AI Diagnostics module has been deployed to production pending DPO sign-off.",
+          "subsections": []
+        }
+      ]
+    },
+    {
+      "doc_id": "data_map",
+      "title": "MediCore Data Flow Map",
+      "sections": [
+        {
+          "section_id": "s1",
+          "title": "De-identification Process",
+          "content": "Patient data shared with DataFlow Analytics is de-identified using safe harbor method per 45 CFR 164.514(b). 18 HIPAA identifiers are removed before data transfer. Re-identification risk assessment was last conducted 3 years ago.",
+          "subsections": []
+        }
+      ]
+    }
+  ],
+  "ground_truth": {
+    "gaps": [
+      {
+        "gap_id": "gap_1",
+        "clause_ref": "subprocessor_list.s2",
+        "gap_type": "baa_requirement",
+        "severity": "high",
+        "framework": "HIPAA",
+        "article": "45 CFR 164.314",
+        "description": "DataFlow Analytics receives data from MediCore PHI pipeline but has not executed a BAA. Even with de-identification claims, if there's re-identification risk or if identifiers are present, a BAA is required.",
+        "evidence_passage": "DataFlow Analytics has not executed a Business Associate Agreement with MediCore as of last audit. DataFlow receives de-identified data only per our data sharing agreement.",
+        "evidence_location": "subprocessor_list.s2",
+        "canonical_remediation_keywords": ["business associate agreement", "BAA", "execute BAA", "45 CFR 164.314", "require signed", "before data sharing"]
+      },
+      {
+        "gap_id": "gap_2",
+        "clause_ref": "dpia.s3",
+        "gap_type": "dpo_requirement",
+        "severity": "high",
+        "framework": "GDPR",
+        "article": "Article 35",
+        "description": "High-risk AI processing (clinical notes, LLM) was deployed to production without completing mandatory DPIA and DPO consultation as required by Article 35. DPIA is incomplete and DPO review has not occurred.",
+        "evidence_passage": "DPO review was scheduled but has not yet occurred. The AI Diagnostics module has been deployed to production pending DPO sign-off.",
+        "evidence_location": "dpia.s3",
+        "canonical_remediation_keywords": ["DPIA", "DPO consultation", "Article 35", "prior to deployment", "complete assessment", "suspend deployment"]
+      },
+      {
+        "gap_id": "gap_3",
+        "clause_ref": "security_policy.s1",
+        "gap_type": "availability_control",
+        "severity": "medium",
+        "framework": "SOC2",
+        "article": "A1",
+        "description": "Actual availability of 97.8% fails the committed 99.5% SLA, but no SLA credits were issued due to broad maintenance exclusions. SOC2 A1 requires documented, honest availability commitments and remediation of gaps between commitment and performance.",
+        "evidence_passage": "actual availability has been 97.8% over the last 12 months due to unplanned outages. No SLA credits have been issued as outages fell within maintenance exclusion periods.",
+        "evidence_location": "security_policy.s1",
+        "canonical_remediation_keywords": ["SLA credits", "actual uptime", "accurate commitment", "root cause", "remediation plan", "SOC2 A1", "availability criteria"]
+      },
+      {
+        "gap_id": "gap_4",
+        "clause_ref": "privacy_policy.s10",
+        "gap_type": "opt_out_mechanism",
+        "severity": "medium",
+        "framework": "CCPA",
+        "article": "1798.121",
+        "description": "No mechanism for California employees to limit use of sensitive personal information as required by CPRA 1798.121. Health and financial data in HR context qualifies as sensitive personal information.",
+        "evidence_passage": "There is no automated mechanism for California patients or employees to limit use of sensitive personal information beyond HIPAA patient rights.",
+        "evidence_location": "privacy_policy.s10",
+        "canonical_remediation_keywords": ["1798.121", "limit use", "sensitive personal information", "automated mechanism", "opt-out", "CPRA", "employee rights"]
+      },
+      {
+        "gap_id": "gap_5",
+        "clause_ref": "security_policy.s4",
+        "gap_type": "audit_log_requirement",
+        "severity": "medium",
+        "framework": "SOC2",
+        "article": "CC7",
+        "description": "Incident Response Plan has not been tested in 18 months. SOC2 CC7 requires regular testing of incident response procedures. Annual testing is the industry standard and auditors expect evidence of IRP testing within the audit period.",
+        "evidence_passage": "The IRP was last tested 18 months ago.",
+        "evidence_location": "security_policy.s4",
+        "canonical_remediation_keywords": ["test annually", "tabletop exercise", "IRP test", "within audit period", "CC7", "documented test results", "regular testing"]
+      },
+      {
+        "gap_id": "gap_6",
+        "clause_ref": "privacy_policy.s6",
+        "gap_type": "breach_notification",
+        "severity": "high",
+        "framework": "HIPAA",
+        "article": "45 CFR 164.404",
+        "description": "Policy correctly describes covered entity's 60-day HIPAA notification obligation but MediCore as Business Associate must notify covered entity 'without unreasonable delay and no later than 60 days' per 45 CFR 164.410 — internal notification timeline to covered entity is missing from policy.",
+        "evidence_passage": "MediCore will notify the covered entity promptly.",
+        "evidence_location": "privacy_policy.s6",
+        "canonical_remediation_keywords": ["60 days", "without unreasonable delay", "45 CFR 164.410", "business associate notification", "specific timeline", "no later than"]
+      },
+      {
+        "gap_id": "gap_7",
+        "clause_ref": "data_map.s1",
+        "gap_type": "data_minimization",
+        "severity": "medium",
+        "framework": "HIPAA",
+        "article": "45 CFR 164.502",
+        "description": "Re-identification risk assessment for de-identified data shared with DataFlow was conducted 3 years ago. HIPAA requires ongoing assurance of de-identification effectiveness — 3 years without re-assessment is insufficient given AI advancement.",
+        "evidence_passage": "Re-identification risk assessment was last conducted 3 years ago.",
+        "evidence_location": "data_map.s1",
+        "canonical_remediation_keywords": ["annual re-assessment", "re-identification risk", "current assessment", "45 CFR 164.514", "periodic review", "AI tools"]
+      },
+      {
+        "gap_id": "gap_8",
+        "clause_ref": "privacy_policy.s2",
+        "gap_type": "consent_mechanism",
+        "severity": "medium",
+        "framework": "GDPR",
+        "article": "Article 9",
+        "description": "MediCore states legal basis for EU health data is consent obtained by the healthcare provider. However, as a processor, MediCore must verify that the controller's consent mechanism meets Article 9(2)(a) requirements — explicit, freely given, withdrawable consent. No verification mechanism is documented.",
+        "evidence_passage": "The legal basis for processing special category health data (Article 9) is explicit consent obtained by the covered healthcare provider.",
+        "evidence_location": "privacy_policy.s2",
+        "canonical_remediation_keywords": ["verify consent", "Article 9(2)(a)", "consent audit", "processor obligation", "controller consent standards", "documented verification"]
+      },
+      {
+        "gap_id": "gap_9",
+        "clause_ref": "security_policy.s2",
+        "gap_type": "phi_safeguard",
+        "severity": "medium",
+        "framework": "HIPAA",
+        "article": "45 CFR 164.308",
+        "description": "Critical vulnerability patching within 30 days is insufficient for systems processing PHI. HIPAA Security Rule requires timely remediation — 30 days for critical vulnerabilities exposes PHI to risk. Industry standard for healthcare is 15 days or less for critical vulnerabilities.",
+        "evidence_passage": "Critical vulnerabilities are patched within 30 days of discovery.",
+        "evidence_location": "security_policy.s2",
+        "canonical_remediation_keywords": ["15 days", "critical patch", "emergency patching", "PHI systems", "45 CFR 164.308", "timely remediation", "risk analysis"]
+      },
+      {
+        "gap_id": "gap_10",
+        "clause_ref": "privacy_policy.s8",
+        "gap_type": "data_subject_rights",
+        "severity": "low",
+        "framework": "CCPA",
+        "article": "1798.130",
+        "description": "MediCore forwards CCPA requests to covered entities within 5 days but does not disclose this routing to consumers, nor provide a direct contact point as required by 1798.130. Consumers must be informed of the proper channel to submit requests.",
+        "evidence_passage": "Requests are forwarded to the relevant covered entity within 5 days.",
+        "evidence_location": "privacy_policy.s8",
+        "canonical_remediation_keywords": ["disclose forwarding", "consumer notice", "1798.130", "direct contact", "inform consumer", "response process"]
+      }
+    ],
+    "red_herrings": [
+      {
+        "clause_ref": "privacy_policy.s3",
+        "reason_not_a_gap": "10-year retention for patient records is compliant with US state healthcare recordkeeping minimums (typically 7-10 years) and is a valid exception to GDPR Article 17 under Article 17(3)(b) for legal obligation."
+      },
+      {
+        "clause_ref": "privacy_policy.s1",
+        "reason_not_a_gap": "BAAs with covered entities are confirmed as signed and governing the relationship — this correctly satisfies 45 CFR 164.314 for the primary covered entity relationship."
+      },
+      {
+        "clause_ref": "subprocessor_list.s3",
+        "reason_not_a_gap": "SendGrid and Twilio both have executed BAAs and are correctly governed. PHI in appointment reminders (name, date) is limited and properly covered by BAAs."
+      }
+    ],
+    "conflicts": [
+      {
+        "conflict_id": "conflict_1",
+        "framework_a": "GDPR",
+        "framework_b": "HIPAA",
+        "description": "GDPR Article 17 right to erasure for EU patients conflicts with HIPAA's minimum 6-year retention for health records (extended to 10 years under state law). EU patients cannot exercise erasure rights during retention window.",
+        "governing_clause": "privacy_policy.s3",
+        "resolution": "Apply HIPAA/state law retention minimum (10 years) as overriding legal obligation per Article 17(3)(b). Inform EU patients of retention constraint and provide deletion confirmation post-retention."
+      },
+      {
+        "conflict_id": "conflict_2",
+        "framework_a": "GDPR",
+        "framework_b": "HIPAA",
+        "description": "GDPR Article 33 requires supervisory authority notification within 72 hours. HIPAA allows covered entities 60 days for individual notification and HHS reporting. MediCore as processor must support both timelines simultaneously for dual-jurisdiction breaches.",
+        "governing_clause": "privacy_policy.s6",
+        "resolution": "Maintain separate breach response tracks: GDPR track (72-hour DPA notification for EU subjects), HIPAA track (60-day individual + HHS for US PHI). Trigger both tracks simultaneously on breach discovery."
+      },
+      {
+        "conflict_id": "conflict_3",
+        "framework_a": "HIPAA",
+        "framework_b": "CCPA",
+        "description": "HIPAA permits sharing of PHI for healthcare operations without patient consent. CCPA restricts sharing of health information of California residents and requires opt-out mechanisms. California patient PHI used for non-treatment purposes may trigger CCPA opt-out requirements even when HIPAA-permitted.",
+        "governing_clause": "privacy_policy.s10",
+        "resolution": "Treat California patient health information as sensitive personal information under CPRA 1798.121 in addition to HIPAA compliance. Implement limit-use mechanism for non-treatment PHI uses."
+      }
+    ]
+  },
+  "incident": {
+    "incident_id": "INC-2024-001",
+    "incident_type": "unauthorized_database_access",
+    "records_affected": 85000,
+    "trigger_step": 25,
+    "deadline_steps": 8,
+    "description": "ALERT: Unauthorized access detected to MediCore patient database. 85,000 PHI records potentially exposed including clinical notes and billing data. Attack vector: compromised admin credentials. Active investigation in progress.",
+    "required_responses": [
+      "contain_breach",
+      "document_incident",
+      "engage_dpo",
+      "notify_supervisory_authority",
+      "notify_data_subjects"
+    ]
+  },
+  "max_steps": 60,
+  "seed": 7,
+  "is_generated": false
+}
