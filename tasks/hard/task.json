@@ -1,0 +1,288 @@
+{
+  "task_id": "hard_1",
+  "difficulty": "hard",
+  "title": "Multi-Framework Conflict Resolution — NovaSynth Analytics",
+  "company_profile": {
+    "name": "NovaSynth Analytics",
+    "industry": "B2B SaaS (HR & Health Analytics)",
+    "size": "200 employees",
+    "data_types": ["employee_data", "customer_pii", "health_adjacent_data", "financial_records"],
+    "operates_in": ["EU", "California", "US healthcare adjacent"]
+  },
+  "frameworks_in_scope": ["GDPR", "HIPAA", "CCPA"],
+  "applicable_articles": {
+    "GDPR": ["Article 5(1)(b)", "Article 5(1)(c)", "Article 5(1)(e)", "Article 7", "Article 17", "Article 33", "Article 37", "Article 44", "Article 46"],
+    "HIPAA": ["45 CFR 164.314", "45 CFR 164.308", "45 CFR 164.312", "45 CFR 164.502", "45 CFR 164.404"],
+    "CCPA": ["1798.100", "1798.105", "1798.120", "1798.121", "1798.135"]
+  },
+  "documents": [
+    {
+      "doc_id": "privacy_policy",
+      "title": "NovaSynth Privacy Policy v3.2",
+      "sections": [
+        {
+          "section_id": "s1",
+          "title": "Data Collection and Legal Basis",
+          "content": "NovaSynth collects personal data including employee names, email addresses, HR performance metrics, wellness survey responses, salary information, and behavioral analytics. For EU data subjects, we rely on legitimate interests as our legal basis for processing all HR analytics data. We collect only what is necessary for providing our analytics services.",
+          "subsections": []
+        },
+        {
+          "section_id": "s2",
+          "title": "Data Retention Policy",
+          "content": "We retain personal data for a maximum period of 24 months, after which all records are permanently deleted in accordance with Article 5(1)(e) of the GDPR. Health-adjacent wellness data is retained for 6 years to comply with applicable recordkeeping requirements.",
+          "subsections": []
+        },
+        {
+          "section_id": "s3",
+          "title": "Purpose of Processing",
+          "content": "We process data for: (1) HR analytics and workforce planning for our clients, (2) product development and improvement, (3) training our machine learning models on aggregated patterns, (4) benchmarking performance against industry datasets, and (5) any ancillary commercial purposes as determined by NovaSynth.",
+          "subsections": []
+        },
+        {
+          "section_id": "s4",
+          "title": "Data Minimization",
+          "content": "NovaSynth is committed to data minimization. We collect only the personal information specifically requested by our clients and necessary to provide agreed services. All data collection is documented in our processing records. Wellness survey responses from users are collected to provide aggregate wellbeing reports.",
+          "subsections": []
+        },
+        {
+          "section_id": "s5",
+          "title": "Third-Party Vendors and Business Associates",
+          "content": "NovaSynth shares data with cloud infrastructure providers (AWS, GCP), analytics sub-processors, and business intelligence partners. All vendors are vetted for security compliance. We provide vendor lists upon request. Vendors processing health-adjacent data operate under our vendor security policy.",
+          "subsections": []
+        },
+        {
+          "section_id": "s6",
+          "title": "Data Subject Rights",
+          "content": "EU data subjects may exercise rights under GDPR Articles 15-21 by contacting dsr@novasynth.io. California residents may submit CCPA requests to the same address. We process deletion requests within 45 days. However, we may decline deletion requests where data is necessary for our legitimate business interests, ongoing analytics services, or legal compliance.",
+          "subsections": []
+        },
+        {
+          "section_id": "s7",
+          "title": "International Data Transfers",
+          "content": "Data collected from EU residents is processed in the United States under Standard Contractual Clauses (SCCs) approved by the European Commission. We maintain a copy of our SCCs available upon request and conduct transfer impact assessments for high-risk transfers.",
+          "subsections": []
+        },
+        {
+          "section_id": "s8",
+          "title": "Breach Notification",
+          "content": "In the event of a personal data breach, NovaSynth will notify relevant supervisory authorities within 72 hours of becoming aware of the breach, where feasible, as required by GDPR Article 33. Affected individuals will be notified without undue delay where the breach is likely to result in high risk.",
+          "subsections": []
+        },
+        {
+          "section_id": "s9",
+          "title": "Data Protection Officer",
+          "content": "NovaSynth has appointed a Data Protection Officer (DPO) reachable at dpo@novasynth.io. The DPO monitors compliance, advises on data protection impact assessments, and serves as the contact point for supervisory authorities.",
+          "subsections": []
+        },
+        {
+          "section_id": "s10",
+          "title": "California Consumer Rights",
+          "content": "California residents have the right to know, delete, and opt out of the sale of personal information. NovaSynth does not sell personal information as defined under CCPA. California residents may also request information about sensitive personal data processing. To exercise rights, visit our Privacy Rights Portal at privacy.novasynth.io.",
+          "subsections": []
+        }
+      ]
+    },
+    {
+      "doc_id": "vendor_agreement",
+      "title": "Vendor Data Processing Agreement v2.0",
+      "sections": [
+        {
+          "section_id": "s1",
+          "title": "Scope and Health Data",
+          "content": "This agreement governs NovaSynth's relationship with vendors processing data on its behalf. Vendors may receive personal data including wellness and health-adjacent information collected through NovaSynth's HR platform. Vendors processing any health-related data must comply with NovaSynth's internal security policy.",
+          "subsections": []
+        },
+        {
+          "section_id": "s2",
+          "title": "Security Requirements",
+          "content": "Vendors must implement encryption at rest and in transit, access controls, and audit logging. Annual security assessments are required. Vendors must notify NovaSynth of security incidents within 48 hours.",
+          "subsections": []
+        },
+        {
+          "section_id": "s3",
+          "title": "Subprocessor Restrictions",
+          "content": "Vendors may not engage subprocessors without prior written approval from NovaSynth. All approved subprocessors are listed in Annex A. Vendors must ensure subprocessors meet equivalent security standards.",
+          "subsections": []
+        }
+      ]
+    },
+    {
+      "doc_id": "technical_spec",
+      "title": "NovaSynth Platform Technical Security Specification",
+      "sections": [
+        {
+          "section_id": "s1",
+          "title": "Access Control",
+          "content": "Access to personal data is controlled through role-based access control (RBAC). All access events are logged to an audit trail retained for 12 months. Multi-factor authentication is required for all admin access.",
+          "subsections": []
+        },
+        {
+          "section_id": "s2",
+          "title": "Encryption",
+          "content": "All data is encrypted at rest using AES-256 and in transit using TLS 1.2 or higher. Encryption keys are managed through AWS KMS with annual rotation.",
+          "subsections": []
+        },
+        {
+          "section_id": "s3",
+          "title": "Incident Response",
+          "content": "NovaSynth maintains a documented incident response plan. Security incidents are triaged within 4 hours, contained within 24 hours, and reported to leadership within 48 hours. Regulatory notification timelines are managed by the legal team.",
+          "subsections": []
+        }
+      ]
+    },
+    {
+      "doc_id": "data_map",
+      "title": "NovaSynth Data Processing Map v1.5",
+      "sections": [
+        {
+          "section_id": "s1",
+          "title": "Wellness Data Classification",
+          "content": "NovaSynth collects general wellness survey responses from users including stress levels, sleep quality ratings, and self-reported energy levels on a 1-10 scale. This data is not linked to specific medical diagnoses, treatment records, or covered entity relationships. The data is used to provide aggregate wellbeing dashboards to employer clients.",
+          "subsections": []
+        },
+        {
+          "section_id": "s2",
+          "title": "Employee Data Flows",
+          "content": "Employee personal data flows from client HR systems through NovaSynth's secure API to analytics processing engines. Data is pseudonymized at ingestion with client-held encryption keys. Real names are accessible only to authorized client administrators.",
+          "subsections": []
+        }
+      ]
+    }
+  ],
+  "ground_truth": {
+    "gaps": [
+      {
+        "gap_id": "gap_1",
+        "clause_ref": "privacy_policy.s3",
+        "gap_type": "purpose_limitation",
+        "severity": "high",
+        "framework": "GDPR",
+        "article": "Article 5(1)(b)",
+        "description": "Open-ended clause '(5) any ancillary commercial purposes as determined by NovaSynth' violates purpose limitation. Processing purposes must be specified, explicit, and legitimate prior to collection.",
+        "evidence_passage": "any ancillary commercial purposes as determined by NovaSynth",
+        "evidence_location": "privacy_policy.s3",
+        "canonical_remediation_keywords": ["specific", "explicit", "legitimate purpose", "specified in advance", "compatible purpose", "remove open-ended"]
+      },
+      {
+        "gap_id": "gap_2",
+        "clause_ref": "privacy_policy.s5",
+        "gap_type": "baa_requirement",
+        "severity": "high",
+        "framework": "HIPAA",
+        "article": "45 CFR 164.314",
+        "description": "Vendors processing health-adjacent data are not governed by Business Associate Agreements (BAAs) as required by HIPAA. The vendor agreement references an internal security policy but not formal BAAs.",
+        "evidence_passage": "Vendors processing health-adjacent data operate under our vendor security policy.",
+        "evidence_location": "privacy_policy.s5",
+        "canonical_remediation_keywords": ["business associate agreement", "BAA", "45 CFR 164.314", "covered entity", "business associate", "signed agreement"]
+      },
+      {
+        "gap_id": "gap_3",
+        "clause_ref": "privacy_policy.s6",
+        "gap_type": "data_subject_rights",
+        "severity": "medium",
+        "framework": "GDPR",
+        "article": "Article 17",
+        "description": "Blanket override of deletion rights citing 'legitimate business interests' is not a valid GDPR Article 17 exception. Exceptions are narrowly defined in Article 17(3) and must be assessed individually.",
+        "evidence_passage": "we may decline deletion requests where data is necessary for our legitimate business interests, ongoing analytics services, or legal compliance",
+        "evidence_location": "privacy_policy.s6",
+        "canonical_remediation_keywords": ["Article 17(3)", "specific exemption", "legal obligation", "case by case", "narrow exception", "freedom of expression", "public interest"]
+      },
+      {
+        "gap_id": "gap_4",
+        "clause_ref": "privacy_policy.s1",
+        "gap_type": "consent_mechanism",
+        "severity": "high",
+        "framework": "GDPR",
+        "article": "Article 6",
+        "description": "Legitimate interests is cited as the sole legal basis for all HR analytics processing including sensitive wellness data. Sensitive data categories require explicit consent or specific legal basis under Article 9, not merely legitimate interests.",
+        "evidence_passage": "For EU data subjects, we rely on legitimate interests as our legal basis for processing all HR analytics data.",
+        "evidence_location": "privacy_policy.s1",
+        "canonical_remediation_keywords": ["explicit consent", "Article 9", "special category", "separate legal basis", "not solely legitimate interests", "sensitive data"]
+      },
+      {
+        "gap_id": "gap_5",
+        "clause_ref": "technical_spec.s1",
+        "gap_type": "audit_log_requirement",
+        "severity": "medium",
+        "framework": "HIPAA",
+        "article": "45 CFR 164.312",
+        "description": "Audit logs retained for only 12 months. HIPAA requires audit log retention for 6 years from date of creation or last effective date.",
+        "evidence_passage": "All access events are logged to an audit trail retained for 12 months.",
+        "evidence_location": "technical_spec.s1",
+        "canonical_remediation_keywords": ["6 years", "six years", "HIPAA", "45 CFR 164.316", "retain for", "minimum retention"]
+      },
+      {
+        "gap_id": "gap_6",
+        "clause_ref": "vendor_agreement.s2",
+        "gap_type": "breach_notification",
+        "severity": "high",
+        "framework": "GDPR",
+        "article": "Article 33",
+        "description": "Vendor breach notification to NovaSynth within 48 hours makes 72-hour supervisory authority notification impossible. GDPR requires processor to notify controller 'without undue delay' to allow timely supervisory notification.",
+        "evidence_passage": "Vendors must notify NovaSynth of security incidents within 48 hours.",
+        "evidence_location": "vendor_agreement.s2",
+        "canonical_remediation_keywords": ["without undue delay", "immediately", "within 24 hours", "Article 33", "72 hours", "processor obligation"]
+      },
+      {
+        "gap_id": "gap_7",
+        "clause_ref": "privacy_policy.s3",
+        "gap_type": "data_minimization",
+        "severity": "medium",
+        "framework": "HIPAA",
+        "article": "45 CFR 164.502",
+        "description": "Training ML models on wellness data without minimum necessary standard evaluation violates HIPAA's minimum necessary rule for uses not required for treatment.",
+        "evidence_passage": "training our machine learning models on aggregated patterns",
+        "evidence_location": "privacy_policy.s3",
+        "canonical_remediation_keywords": ["minimum necessary", "specific justification", "de-identified", "aggregate only", "45 CFR 164.502", "not individually identifiable"]
+      },
+      {
+        "gap_id": "gap_8",
+        "clause_ref": "privacy_policy.s10",
+        "gap_type": "opt_out_mechanism",
+        "severity": "medium",
+        "framework": "CCPA",
+        "article": "1798.121",
+        "description": "While CCPA opt-out of sale is addressed, no mechanism exists for consumers to limit use of sensitive personal information as required by CPRA (1798.121). Salary and health-adjacent data qualify as sensitive personal information.",
+        "evidence_passage": "California residents have the right to know, delete, and opt out of the sale of personal information. NovaSynth does not sell personal information as defined under CCPA.",
+        "evidence_location": "privacy_policy.s10",
+        "canonical_remediation_keywords": ["sensitive personal information", "limit use", "1798.121", "CPRA", "opt-out of use", "restrict processing of sensitive"]
+      }
+    ],
+    "red_herrings": [
+      {
+        "clause_ref": "privacy_policy.s2",
+        "reason_not_a_gap": "24-month maximum retention with permanent deletion is a specific, compliant retention period under Article 5(1)(e). The 6-year health data retention is required by applicable recordkeeping law — a valid exception."
+      },
+      {
+        "clause_ref": "privacy_policy.s7",
+        "reason_not_a_gap": "Standard Contractual Clauses with Transfer Impact Assessments is a valid Chapter V GDPR transfer mechanism — this is compliant."
+      },
+      {
+        "clause_ref": "data_map.s1",
+        "reason_not_a_gap": "General wellness survey data (stress ratings, sleep quality on a 1-10 scale) not linked to medical diagnoses or covered entities is not PHI under HIPAA. This is health-adjacent but not HIPAA-regulated data."
+      }
+    ],
+    "conflicts": [
+      {
+        "conflict_id": "conflict_1",
+        "framework_a": "GDPR",
+        "framework_b": "HIPAA",
+        "description": "GDPR Article 17 right to erasure conflicts with HIPAA's 6-year minimum retention requirement for health records. Data subject deletion requests for wellness data cannot be honoured within the HIPAA retention window.",
+        "governing_clause": "privacy_policy.s2",
+        "resolution": "Retain wellness data for HIPAA's 6-year minimum. Inform data subjects that deletion is suspended during retention window. Delete immediately upon expiry."
+      },
+      {
+        "conflict_id": "conflict_2",
+        "framework_a": "GDPR",
+        "framework_b": "HIPAA",
+        "description": "GDPR Article 33 requires supervisory authority notification within 72 hours. HIPAA allows 60 days for individual and HHS notification. Vendor agreement (48-hour processor notification) was designed for HIPAA timelines but is incompatible with GDPR.",
+        "governing_clause": "vendor_agreement.s2",
+        "resolution": "Apply 72-hour GDPR clock for all breaches involving EU data subjects. Require vendor notification within 24 hours to allow assessment and timely GDPR reporting."
+      }
+    ]
+  },
+  "incident": null,
+  "max_steps": 40,
+  "seed": 1,
+  "is_generated": false
+}
