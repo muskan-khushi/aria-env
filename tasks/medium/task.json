@@ -1,0 +1,179 @@
+{
+  "task_id": "medium_1",
+  "difficulty": "medium",
+  "title": "Cross-Framework Document Review — DataBridge Analytics",
+  "company_profile": {
+    "name": "DataBridge Analytics",
+    "industry": "B2B Marketing Analytics",
+    "size": "85 employees",
+    "data_types": ["consumer_pii", "behavioral_data", "device_identifiers", "purchase_history"],
+    "operates_in": ["EU", "California", "US"]
+  },
+  "frameworks_in_scope": ["GDPR", "CCPA"],
+  "applicable_articles": {
+    "GDPR": ["Article 5(1)(b)", "Article 5(1)(e)", "Article 7", "Article 33", "Article 44"],
+    "CCPA": ["1798.120", "1798.135", "1798.100", "1798.105"]
+  },
+  "documents": [
+    {
+      "doc_id": "privacy_policy",
+      "title": "DataBridge Privacy Policy v2.1",
+      "sections": [
+        {
+          "section_id": "s1",
+          "title": "Data Collection",
+          "content": "DataBridge collects personal information including names, email addresses, IP addresses, device identifiers, purchase history, and behavioral data through our analytics SDK. We collect this data when our clients integrate the DataBridge SDK into their platforms.",
+          "subsections": []
+        },
+        {
+          "section_id": "s2",
+          "title": "Purpose of Processing",
+          "content": "We process personal data for the following purposes: (1) providing analytics services to our business clients, (2) improving our machine learning models, (3) developing new product features, (4) creating audience segments for advertising purposes, and (5) any other purposes we determine are beneficial to our business operations.",
+          "subsections": []
+        },
+        {
+          "section_id": "s3",
+          "title": "Data Retention",
+          "content": "We retain personal data collected through our SDK for a maximum period of 36 months from the date of collection. After this period, data is anonymized or deleted. Aggregate and anonymized data may be retained indefinitely for benchmarking purposes.",
+          "subsections": []
+        },
+        {
+          "section_id": "s4",
+          "title": "Data Sharing and Sale",
+          "content": "We share data with our business clients who integrate our SDK. We also share data with trusted third-party partners for purposes including advertising, market research, and product improvement. DataBridge may sell or share consumer data with advertising networks to support our free tier offering.",
+          "subsections": []
+        },
+        {
+          "section_id": "s5",
+          "title": "International Data Transfers",
+          "content": "DataBridge processes data in the United States. Data collected from EU residents may be transferred to and processed in the US. We rely on the adequacy of our internal data handling practices for such transfers.",
+          "subsections": []
+        },
+        {
+          "section_id": "s6",
+          "title": "Consumer Rights",
+          "content": "California residents may submit data requests to privacy@databridge.io. EU residents may also contact us for data access requests. We process all requests within 90 days.",
+          "subsections": []
+        },
+        {
+          "section_id": "s7",
+          "title": "Opt-Out",
+          "content": "Consumers may opt out of certain data uses by contacting us at privacy@databridge.io. We do not currently provide an automated opt-out mechanism on our website.",
+          "subsections": []
+        }
+      ]
+    },
+    {
+      "doc_id": "data_processing_agreement",
+      "title": "DataBridge Data Processing Agreement Template v1.0",
+      "sections": [
+        {
+          "section_id": "s1",
+          "title": "Processor Obligations",
+          "content": "DataBridge agrees to process personal data only on documented instructions from the Controller. DataBridge will implement appropriate technical and organisational measures to ensure security of personal data.",
+          "subsections": []
+        },
+        {
+          "section_id": "s2",
+          "title": "Sub-processors",
+          "content": "DataBridge uses sub-processors including cloud providers and analytics services. A list of current sub-processors is available upon request. DataBridge will provide 30 days notice before adding new sub-processors.",
+          "subsections": []
+        },
+        {
+          "section_id": "s3",
+          "title": "Breach Notification",
+          "content": "In the event of a personal data breach, DataBridge will notify the Controller within 5 business days of becoming aware of the breach. Controllers are responsible for their own regulatory notification obligations.",
+          "subsections": []
+        }
+      ]
+    }
+  ],
+  "ground_truth": {
+    "gaps": [
+      {
+        "gap_id": "gap_1",
+        "clause_ref": "privacy_policy.s2",
+        "gap_type": "purpose_limitation",
+        "severity": "high",
+        "framework": "GDPR",
+        "article": "Article 5(1)(b)",
+        "description": "Open-ended purpose clause 'any other purposes we determine are beneficial' violates purpose limitation under Article 5(1)(b). Purposes must be specified, explicit, and legitimate.",
+        "evidence_passage": "any other purposes we determine are beneficial to our business operations",
+        "evidence_location": "privacy_policy.s2",
+        "canonical_remediation_keywords": ["specific", "explicit", "legitimate purpose", "compatible", "specified in advance", "list all purposes"]
+      },
+      {
+        "gap_id": "gap_2",
+        "clause_ref": "privacy_policy.s4",
+        "gap_type": "opt_out_mechanism",
+        "severity": "high",
+        "framework": "CCPA",
+        "article": "1798.120",
+        "description": "DataBridge sells consumer data but does not provide a 'Do Not Sell or Share My Personal Information' link as required by CCPA Section 1798.135. Email-only opt-out is insufficient.",
+        "evidence_passage": "DataBridge may sell or share consumer data with advertising networks to support our free tier offering.",
+        "evidence_location": "privacy_policy.s4",
+        "canonical_remediation_keywords": ["Do Not Sell or Share My Personal Information", "opt-out link", "homepage", "automated", "1798.135", "clear and conspicuous"]
+      },
+      {
+        "gap_id": "gap_3",
+        "clause_ref": "privacy_policy.s5",
+        "gap_type": "cross_border_transfer",
+        "severity": "high",
+        "framework": "GDPR",
+        "article": "Article 44",
+        "description": "No valid transfer mechanism for EU to US data transfers. 'Adequacy of internal practices' is not a valid transfer mechanism under Chapter V GDPR. Standard Contractual Clauses or adequacy decision required.",
+        "evidence_passage": "We rely on the adequacy of our internal data handling practices for such transfers.",
+        "evidence_location": "privacy_policy.s5",
+        "canonical_remediation_keywords": ["standard contractual clauses", "adequacy decision", "appropriate safeguards", "Article 46", "binding corporate rules", "Data Privacy Framework"]
+      },
+      {
+        "gap_id": "gap_4",
+        "clause_ref": "privacy_policy.s6",
+        "gap_type": "data_subject_rights",
+        "severity": "medium",
+        "framework": "CCPA",
+        "article": "1798.100",
+        "description": "CCPA requires response to consumer requests within 45 days (extendable to 90 with notice), but policy states 90 days without mentioning the 45-day initial requirement or the need for notification of extension.",
+        "evidence_passage": "We process all requests within 90 days.",
+        "evidence_location": "privacy_policy.s6",
+        "canonical_remediation_keywords": ["45 days", "within 45", "extension notice", "confirm receipt", "business days"]
+      },
+      {
+        "gap_id": "gap_5",
+        "clause_ref": "data_processing_agreement.s3",
+        "gap_type": "breach_notification",
+        "severity": "high",
+        "framework": "GDPR",
+        "article": "Article 33",
+        "description": "DPA requires processor notification to controller within 5 business days. GDPR Article 33 requires supervisory authority notification within 72 hours. 5 business days (up to 120 hours) makes 72-hour compliance impossible.",
+        "evidence_passage": "DataBridge will notify the Controller within 5 business days of becoming aware of the breach.",
+        "evidence_location": "data_processing_agreement.s3",
+        "canonical_remediation_keywords": ["72 hours", "without undue delay", "immediately", "24 hours", "calendar hours", "Article 33"]
+      }
+    ],
+    "red_herrings": [
+      {
+        "clause_ref": "privacy_policy.s3",
+        "reason_not_a_gap": "Data retention of 36 months with subsequent anonymization or deletion is a specific, defined maximum retention period — this satisfies Article 5(1)(e)."
+      },
+      {
+        "clause_ref": "data_processing_agreement.s1",
+        "reason_not_a_gap": "Processor obligation to follow Controller instructions and implement appropriate measures is correctly stated — this satisfies Article 28 requirements."
+      }
+    ],
+    "conflicts": [
+      {
+        "conflict_id": "conflict_1",
+        "framework_a": "GDPR",
+        "framework_b": "CCPA",
+        "description": "GDPR requires opt-in consent before processing for advertising purposes (Article 6/7). CCPA allows processing for advertising until consumer opts out (1798.120). A unified policy must apply opt-in for EU users and opt-out for California users.",
+        "governing_clause": "privacy_policy.s4",
+        "resolution": "Implement jurisdiction-aware consent: opt-in flow for EU users detected via geolocation, opt-out mechanism for California users."
+      }
+    ]
+  },
+  "incident": null,
+  "max_steps": 25,
+  "seed": 42,
+  "is_generated": false
+}
