@@ -82,6 +82,7 @@ export default function App() {
             ))}
           </div>
 
+
           {/* Right side badges */}
           <div className="flex items-center gap-3">
             <span
