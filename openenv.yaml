@@ -1,0 +1,69 @@
+name: aria-compliance-env
+version: "1.0.0"
+description: >
+  The first multi-framework compliance RL environment. Trains and benchmarks
+  AI agents on regulatory compliance auditing across GDPR, HIPAA, CCPA, and SOC 2.
+  Features evidence chain validation, cross-framework conflict detection,
+  procedural scenario generation, live incident simulation, and a React dashboard.
+author: "ARIA Team"
+license: MIT
+tags:
+  - compliance
+  - document-review
+  - multi-framework
+  - legal-ai
+  - gdpr
+  - hipaa
+  - ccpa
+  - soc2
+  - evidence-chain
+  - procedural-generation
+  - incident-response
+  - openenv
+
+environment:
+  type: text
+  observation_type: structured
+  action_type: structured
+  reward_type: dense
+  episode_type: finite
+
+tasks:
+  - id: easy
+    name: "Basic GDPR Audit"
+    difficulty: easy
+    max_steps: 15
+    description: "Single-document GDPR audit with 3 obvious gaps. No red herrings that require expert knowledge."
+  - id: medium
+    name: "Cross-Framework Document Review"
+    difficulty: medium
+    max_steps: 25
+    description: "Two-document GDPR + CCPA review with 5 gaps, 2 red herrings, and 1 cross-framework conflict."
+  - id: hard
+    name: "Multi-Framework Conflict Resolution"
+    difficulty: hard
+    max_steps: 40
+    description: "Four documents, GDPR + HIPAA + CCPA, 8 gaps, 3 red herrings, 2 cross-framework conflicts."
+  - id: expert
+    name: "Incident Response Suite"
+    difficulty: expert
+    max_steps: 60
+    description: "Five documents, all 4 frameworks, 10 gaps, live data breach mid-episode requiring real-time response."
+
+endpoints:
+  reset: /reset
+  step: /step
+  state: /state
+  tasks: /tasks
+  grader: /grader
+  baseline: /baseline
+
+baseline:
+  model: gpt-4o-mini
+  reproducible: true
+  seed: 42
+  expected_scores:
+    easy: 0.87
+    medium: 0.63
+    hard: 0.44
+    expert: 0.28
