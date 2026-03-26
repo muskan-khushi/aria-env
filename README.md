@@ -592,7 +592,7 @@ MIT — see [LICENSE](LICENSE)
 ## Citation
 
 ```bibtex
-@software{aria_env_2024,
+@software{aria_env_2026,
   title  = {ARIA: Agentic Regulatory Intelligence Architecture},
   year   = {2026},
   url    = {https://github.com/muskan-khushi/aria-env}
