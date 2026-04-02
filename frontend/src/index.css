@@ -1,28 +1,30 @@
 @import "tailwindcss";
 
 @theme {
-  --color-aria-bg: #E5D9F2;
-  --color-aria-glass: rgba(255, 255, 255, 0.4);
-  --color-aria-glassHover: rgba(255, 255, 255, 0.5);
-  --color-aria-glassBorder: rgba(255, 255, 255, 0.6);
-  --color-aria-textMain: #4A3B69;
-  --color-aria-textMuted: #7E6E9C;
-  --color-aria-accent: #A78BFA;
+  /* The New Violet & Matte Palette */
+  --color-aria-bg: #F5F3FA; /* Barely-there violet-tinted off-white */
+  --color-aria-surface: #FFFFFF; /* Pure opaque white for panels */
+  --color-aria-border: #E4DDF4; /* Crisp, subtle border */
+  
+  /* Deep Violet Typography & Accents */
+  --color-aria-textMain: #2E1A47; /* Almost black, deep violet */
+  --color-aria-textMuted: #6B5B81; /* Softened violet-gray */
+  --color-aria-accent: #6D28D9; /* True, rich Violet (Tailwind violet-700) */
+  --color-aria-accentLight: #EDE9FE; /* For badges and subtle highlights */
 
-  --shadow-glass: 0 8px 32px 0 rgba(100, 80, 130, 0.1);
-  --shadow-glass-inset: inset 0 2px 4px 0 rgba(255, 255, 255, 0.3);
+  /* Expensive, diffused drop shadow instead of glass */
+  --shadow-premium: 0 12px 40px -12px rgba(109, 40, 217, 0.12);
 }
 
 @layer utilities {
-  .glass-panel {
-    @apply bg-aria-glass backdrop-blur-xl border border-aria-glassBorder shadow-glass rounded-2xl;
+  .matte-panel {
+    @apply bg-aria-surface border border-aria-border shadow-premium rounded-2xl transition-all duration-300;
   }
 }
 
 body {
-  /* The soft, glowing background */
-  background: radial-gradient(circle at top left, #F3E8FF, #E9D5FF, #D8B4FE, #E9D5FF);
-  background-attachment: fixed;
+  background-color: var(--color-aria-bg);
   color: var(--color-aria-textMain);
+  /* Keeping the clean system font */
   font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 }
