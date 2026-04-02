@@ -36,9 +36,17 @@ def run_live_demo(task_name="easy"):
     agent = MultiPassAgent(client)
 
     # 2. Reset Environment via API
-    headers = {"X-Session-ID": SESSION_ID}
-    print("🔄 Resetting environment via API...")
-    resp = requests.post(f"{API_BASE}/reset", json={"task_name": task_name, "seed": 42}, headers=headers)
+    headers = {"X-Session-ID": SESSION_ID, "Content-Type": "application/json"}
+    print(f"🔄 Resetting environment for session: {SESSION_ID}...")
+
+    # Pass session_id inside the JSON body too for extra safety
+    reset_payload = {
+        "task_name": task_name, 
+        "seed": 42,
+        "session_id": SESSION_ID  # Add this line
+    }
+
+    resp = requests.post(f"{API_BASE}/reset", json=reset_payload, headers=headers)
     
     if resp.status_code != 200:
         print(f"❌ API Error: {resp.text}")
