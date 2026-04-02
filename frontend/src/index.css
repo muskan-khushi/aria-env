@@ -1,18 +1,28 @@
 @import "tailwindcss";
 
 @theme {
-  /* The New Violet & Matte Palette */
-  --color-aria-bg: #F5F3FA; /* Barely-there violet-tinted off-white */
-  --color-aria-surface: #FFFFFF; /* Pure opaque white for panels */
-  --color-aria-border: #E4DDF4; /* Crisp, subtle border */
-  
-  /* Deep Violet Typography & Accents */
-  --color-aria-textMain: #2E1A47; /* Almost black, deep violet */
-  --color-aria-textMuted: #6B5B81; /* Softened violet-gray */
-  --color-aria-accent: #6D28D9; /* True, rich Violet (Tailwind violet-700) */
-  --color-aria-accentLight: #EDE9FE; /* For badges and subtle highlights */
+  /* The Violet Matte Palette */
+  --color-aria-bg: #F5F3FA; 
+  --color-aria-surface: #FFFFFF; 
+  --color-aria-border: #E4DDF4; 
+  --color-aria-textMain: #2E1A47; 
+  --color-aria-textMuted: #6B5B81; 
+  --color-aria-accent: #6D28D9; 
+  --color-aria-accentLight: #EDE9FE; 
 
-  /* Expensive, diffused drop shadow instead of glass */
+  /* The New Editorial Pastels */
+  --color-pastel-blush: #FFF0F3; /* Soft error background */
+  --color-pastel-blushBorder: #FFE4E8;
+  --color-pastel-blushText: #881337; /* Deep rose text */
+  
+  --color-pastel-peach: #FFF8EE; /* Soft warning background */
+  --color-pastel-peachBorder: #FFEED4;
+  --color-pastel-peachText: #78350F; /* Deep amber text */
+
+  --color-pastel-sage: #F0FDF4; /* Soft success background */
+  --color-pastel-sageText: #14532D; /* Deep emerald text */
+
+  /* Expensive, diffused drop shadow */
   --shadow-premium: 0 12px 40px -12px rgba(109, 40, 217, 0.12);
 }
 
@@ -25,6 +35,5 @@
 body {
   background-color: var(--color-aria-bg);
   color: var(--color-aria-textMain);
-  /* Keeping the clean system font */
   font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 }
