@@ -3,11 +3,12 @@ ARIA — Baseline Agent Classes
 Separated from run_baseline.py so they can be imported independently.
 
 Two agents:
-  SinglePassAgent  — GPT-4o-mini with structured JSON, follows prompt instructions
+  SinglePassAgent  — LLM with structured JSON, follows prompt instructions
   MultiPassAgent   — Curriculum heuristic: read → identify+cite → remediate → finalize
 """
 from __future__ import annotations
 import json
+import os
 from aria.models import (
     ARIAObservation, ARIAAction, ActionType,
     GapType, Severity, Framework
@@ -15,15 +16,18 @@ from aria.models import (
 
 SEED = 42
 
+# Dynamically fetch the model name (crucial for Groq compatibility)
+MODEL_NAME = os.environ.get("MODEL_NAME", "gpt-4o-mini")
+
 
 class SinglePassAgent:
     """
-    GPT-4o-mini baseline agent.
+    LLM baseline agent.
 
     How it works:
     - Gets the full observation (all documents, current findings, step count, etc.)
-    - Sends it to GPT-4o-mini with a detailed system prompt
-    - GPT-4o-mini returns ONE JSON action
+    - Sends it to the LLM with a detailed system prompt
+    - Returns ONE JSON action
     - We parse it into ARIAAction and submit it
 
     Strengths: Reads the actual document content and reasons about it
@@ -42,9 +46,8 @@ class SinglePassAgent:
 
         try:
             response = self.client.chat.completions.create(
-                model="gpt-4o-mini",
-                temperature=0.0,      # deterministic
-                seed=SEED,            # reproducible
+                model=MODEL_NAME,
+                temperature=0.0,      # deterministic (seed removed for Groq compatibility)
                 response_format={"type": "json_object"},
                 messages=[
                     {"role": "system", "content": SYSTEM_PROMPT},
@@ -63,12 +66,12 @@ class SinglePassAgent:
 
 class MultiPassAgent:
     """
-    Curriculum heuristic agent. Does NOT require an API key.
+    Curriculum heuristic agent. Does NOT require an API key for reading/finalizing.
 
     Strategy (mirrors what a good human auditor does):
-      Phase 1 (0–35% of steps):   Read every document section systematically
-      Phase 2 (35–70% of steps):  Identify gaps + cite evidence (uses LLM if available)
-      Phase 3 (70–90% of steps):  Submit remediations for all confirmed findings
+      Phase 1 (0–35% of steps):  Read every document section systematically
+      Phase 2 (35–70% of steps): Identify gaps + cite evidence (uses LLM if available)
+      Phase 3 (70–90% of steps): Submit remediations for all confirmed findings
       Phase 4 (90–100% of steps): Escalate conflicts + submit final report
 
     This agent consistently scores 5-10 points higher than SinglePass because
@@ -151,7 +154,7 @@ class MultiPassAgent:
         return None
 
     def _llm_identify_gap(self, obs: ARIAObservation) -> ARIAAction:
-        """Ask GPT-4o-mini to identify the next compliance gap."""
+        """Ask LLM to identify the next compliance gap."""
         from baseline.prompts import SYSTEM_PROMPT
         try:
             visible = []
@@ -176,9 +179,8 @@ Respond with EXACTLY ONE JSON object with action_type=identify_gap.
 Required fields: action_type, clause_ref, gap_type, severity, description"""
 
             resp = self.client.chat.completions.create(
-                model="gpt-4o-mini",
-                temperature=0.0,
-                seed=SEED,
+                model=MODEL_NAME,
+                temperature=0.0, # seed removed for Groq compatibility
                 response_format={"type": "json_object"},
                 messages=[
                     {"role": "system", "content": SYSTEM_PROMPT},
@@ -318,7 +320,6 @@ _REMEDIATIONS = {
         "Document and address root causes of outages per SOC 2 A1 criteria."
     ),
 }
-
 
 def _get_remediation_text(gap_type) -> str:
     key = gap_type.value if hasattr(gap_type, "value") else str(gap_type)

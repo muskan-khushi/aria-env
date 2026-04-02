@@ -1,6 +1,7 @@
 """
 ARIA — Baseline Inference Script
 Reproducible baseline scoring using GPT-4o-mini (SinglePass + MultiPass).
+Supports Groq/vLLM via OpenAI-compatible endpoints.
 Usage: python baseline/run_baseline.py
 """
 from __future__ import annotations
@@ -25,6 +26,8 @@ RESULTS_FILE = Path(__file__).parent / "baseline_results.json"
 TASKS = ["easy", "medium", "hard", "expert"]
 SEED = 42
 
+# Dynamically fetch the model name (defaults to gpt-4o-mini if not set)
+MODEL_NAME = os.environ.get("MODEL_NAME", "gpt-4o-mini")
 
 # ─── System Prompt ─────────────────────────────────────────────────────────────
 
@@ -111,7 +114,7 @@ Decide your next action. Remember: read all sections first, then identify gaps w
 # ─── SinglePass Agent ─────────────────────────────────────────────────────────
 
 class SinglePassAgent:
-    """GPT-4o-mini with structured JSON output. Temperature=0, seed=42."""
+    """LLM with structured JSON output. Temperature=0."""
 
     def __init__(self, client: "OpenAI"):
         self.client = client
@@ -123,9 +126,9 @@ class SinglePassAgent:
 
         try:
             response = self.client.chat.completions.create(
-                model="gpt-4o-mini",
+                model=MODEL_NAME,
                 temperature=0.0,
-                seed=SEED,
+                # seed=SEED,  <-- REMOVED FOR GROQ COMPATIBILITY
                 response_format={"type": "json_object"},
                 messages=[
                     {"role": "system", "content": SYSTEM_PROMPT},
@@ -139,6 +142,7 @@ class SinglePassAgent:
             return ARIAAction(**data)
         except Exception as e:
             # Fallback: request next unread section
+            print(f"    [SinglePass] LLM error: {e} — using fallback")
             return _fallback_action(obs)
 
 
@@ -247,9 +251,9 @@ Identify ONE compliance gap not yet flagged. Return JSON ARIAAction with action_
 Required fields: action_type, clause_ref, gap_type, severity, description"""
 
             resp = self.client.chat.completions.create(
-                model="gpt-4o-mini",
+                model=MODEL_NAME,
                 temperature=0.0,
-                seed=SEED,
+                # seed=SEED,  <-- REMOVED FOR GROQ COMPATIBILITY
                 response_format={"type": "json_object"},
                 messages=[
                     {"role": "system", "content": SYSTEM_PROMPT},
@@ -259,7 +263,8 @@ Required fields: action_type, clause_ref, gap_type, severity, description"""
             )
             data = json.loads(resp.choices[0].message.content)
             return ARIAAction(**data)
-        except Exception:
+        except Exception as e:
+            print(f"    [MultiPass] LLM error: {e}")
             return _fallback_action(obs)
 
 
@@ -323,14 +328,20 @@ def _generate_remediation(gap_type, clause_ref: str) -> str:
 # ─── Run Baseline ─────────────────────────────────────────────────────────────
 
 def run_baseline():
-    api_key = os.environ.get("OPENAI_API_KEY")
+    # Supports the organizer's exact required variables
+    api_key = os.environ.get("HF_TOKEN") or os.environ.get("GROQ_API_KEY") or os.environ.get("OPENAI_API_KEY")
+    base_url = os.environ.get("API_BASE_URL")
+    
     if not api_key or not OPENAI_AVAILABLE:
-        print("⚠️  OPENAI_API_KEY not set or openai not installed. Running with MultiPass heuristic agent only.")
+        print("⚠️  No API Key found. Running with MultiPass heuristic agent only.")
         client = None
     else:
-        client = OpenAI(api_key=api_key)
+        # Pass base_url to the client. If base_url is None, it safely uses default OpenAI.
+        client = OpenAI(api_key=api_key, base_url=base_url)
+        print(f"🔗 Connected to LLM: {MODEL_NAME}")
 
-    results = {"results": [], "model": "gpt-4o-mini", "seed": SEED}
+    # Track the actual model name in the results file
+    results = {"results": [], "model": MODEL_NAME, "seed": SEED}
 
     for task_name in TASKS:
         print(f"\n{'='*50}")
@@ -370,17 +381,18 @@ def run_baseline():
                 "task": task_name,
                 "agent": agent_name,
                 "score": grade.score,
-                "f1": grade.f1_score.f1,
-                "precision": grade.f1_score.precision,
-                "recall": grade.f1_score.recall,
-                "evidence_score": grade.evidence_score,
-                "remediation_score": grade.remediation_score,
+                "f1": getattr(grade.f1_score, 'f1', 0.0) if hasattr(grade, 'f1_score') else 0.0,
+                "precision": getattr(grade.f1_score, 'precision', 0.0) if hasattr(grade, 'f1_score') else 0.0,
+                "recall": getattr(grade.f1_score, 'recall', 0.0) if hasattr(grade, 'f1_score') else 0.0,
+                "evidence_score": getattr(grade, 'evidence_score', 0.0),
+                "remediation_score": getattr(grade, 'remediation_score', 0.0),
                 "steps_taken": step_count,
                 "cumulative_reward": total_reward,
-                "breakdown": grade.breakdown,
+                "breakdown": getattr(grade, 'breakdown', {}),
             }
             results["results"].append(result)
-            print(f"    Score: {grade.score:.3f} | F1: {grade.f1_score.f1:.3f} | Steps: {step_count}")
+            f1_val = result["f1"]
+            print(f"    Score: {grade.score:.3f} | F1: {f1_val:.3f} | Steps: {step_count}")
 
     # Save results
     RESULTS_FILE.parent.mkdir(parents=True, exist_ok=True)
