@@ -5,6 +5,9 @@ Connects the MultiPassAgent to the FastAPI server to trigger real-time WebSocket
 import time
 import requests
 import os
+
+from dotenv import load_dotenv
+load_dotenv() # This automatically finds and loads your .env file!
 from openai import OpenAI
 from aria.models import ARIAObservation
 

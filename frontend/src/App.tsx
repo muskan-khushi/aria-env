@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { 
-  FileText, Activity, Play, Sparkles, Settings2, X, AlertOctagon, Clock, Trophy, History, Siren
+  FileText, Activity, Sparkles, Settings2, AlertOctagon, Clock, Trophy, History, Siren
 } from 'lucide-react';
 
 // Import our newly extracted components!
