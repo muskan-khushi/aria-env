@@ -1,0 +1,55 @@
+{
+  "task_id": "easy_1",
+  "difficulty": "easy",
+  "title": "Global SaaS Provider Basic Audit",
+  "company_profile": {
+    "name": "NovaSynth Analytics",
+    "industry": "B2B SaaS",
+    "size": "200 employees",
+    "data_types": ["employee_data", "customer_pii"],
+    "operates_in": ["EU", "California"]
+  },
+  "frameworks_in_scope": ["GDPR"],
+  "documents": [
+    {
+      "doc_id": "privacy_policy",
+      "title": "Privacy Policy v3.2",
+      "sections": [
+        {
+          "section_id": "s1",
+          "title": "Data Collection",
+          "content": "We collect personal information including names, email addresses, and usage analytics.",
+          "subsections": []
+        },
+        {
+          "section_id": "s2",
+          "title": "Data Retention",
+          "content": "We retain customer data for as long as necessary. Upon completion of service, data may be archived indefinitely.",
+          "subsections": []
+        }
+      ]
+    }
+  ],
+  "ground_truth": {
+    "gaps": [
+      {
+        "gap_id": "gap_1",
+        "clause_ref": "privacy_policy.s2",
+        "gap_type": "data_retention",
+        "severity": "high",
+        "framework": "GDPR",
+        "article": "Article 5(1)(e)",
+        "description": "No maximum retention period specified. Indefinite archiving violates data minimization.",
+        "evidence_passage": "data may be archived indefinitely",
+        "evidence_location": "privacy_policy.s2",
+        "canonical_remediation_keywords": ["maximum period", "retention limit", "delete after"]
+      }
+    ],
+    "red_herrings": [],
+    "conflicts": [],
+    "incident": null,
+    "max_steps": 15,
+    "seed": 42,
+    "is_generated": false
+  }
+}
