@@ -28,13 +28,30 @@ class GraderRequest(BaseModel):
 # ─── POST /reset ──────────────────────────────────────────────────────────────
 
 @router.post("/reset")
-async def reset(req: ResetRequest = None, x_session_id: str = Header(None, alias="X-Session-ID")):
+async def reset(
+    req: ResetRequest = None, 
+    x_session_id: str = Header(None, alias="X-Session-ID")
+):
     if req is None:
         req = ResetRequest()
     try:
-        sid, env = session_manager.create(task_name=req.task_name, seed=req.seed)
+        # FIX: Pass x_session_id (from the header) into the session_manager
+        # This forces the manager to use 'hackathon_demo_001' instead of a random ID
+        sid, env = session_manager.create(
+            task_name=req.task_name, 
+            seed=req.seed, 
+            forced_session_id=x_session_id
+        )
+        
         obs = env.state()
-        return obs.model_dump()
+        
+        # We must ensure the observation returned to the script 
+        # also contains the correct session_id
+        obs_dict = obs.model_dump()
+        obs_dict["session_id"] = sid
+        
+        return obs_dict
+        
     except FileNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
