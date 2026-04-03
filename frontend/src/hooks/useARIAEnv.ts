@@ -15,9 +15,10 @@ export function useARIAEnv() {
     setError(null);
     try {
       // Calls the required OpenEnv POST /reset endpoint
-      const response = await fetch(`${API_BASE}/reset?task_name=${taskName}&seed=${seed}`, {
+      const response = await fetch(`${API_BASE}/reset`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ task_name: taskName, seed: seed })
       });
       
       if (!response.ok) throw new Error(`API Error: ${response.status}`);

@@ -1,12 +1,11 @@
 import { useState } from 'react';
-import { X, Play, Zap, Layers, Swords, Siren, Wand2, Dna } from 'lucide-react';
+import { X, Play, Zap, Layers, Swords, Siren, Dna } from 'lucide-react';
 
 const taskTiers = [
   { id: 'easy', name: 'Single-Doc GDPR', icon: Zap, desc: 'Direct pattern matching on a single document.', frameworks: 'GDPR', steps: 15 },
   { id: 'medium', name: 'Cross-Doc Review', icon: Layers, desc: 'Multi-document relational reasoning with contradictions.', frameworks: 'GDPR, CCPA', steps: 25 },
   { id: 'hard', name: 'Multi-Framework Conflict', icon: Swords, desc: 'Adversarial clauses and cross-framework conflicts.', frameworks: 'GDPR, HIPAA, CCPA', steps: 40 },
   { id: 'expert', name: 'Incident Response Suite', icon: Siren, desc: 'Dual-task: Live data breach mid-audit.', frameworks: 'All Frameworks', steps: 60 },
-  { id: 'procedural', name: 'Procedural Generation', icon: Wand2, desc: 'Zero-shot novel company profiles via GPT-4o-mini.', frameworks: 'Variable', steps: '∞' },
 ];
 
 interface TaskExplorerProps {

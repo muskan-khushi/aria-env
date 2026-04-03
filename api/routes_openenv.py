@@ -18,6 +18,7 @@ BASELINE_CACHE = Path(__file__).parent.parent / "baseline" / "baseline_results.j
 class ResetRequest(BaseModel):
     task_name: str = "easy"
     seed: int = 42
+    session_id: str | None = None
 
 class StepRequest(BaseModel):
     action: ARIAAction

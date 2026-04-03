@@ -18,13 +18,19 @@
         {
           "section_id": "s1",
           "title": "Data Collection",
-          "content": "We collect personal information including names, email addresses, and usage analytics.",
+          "content": "We collect personal information including names, email addresses, and usage analytics. We collect all available usage data from your browser to ensure our service works effectively.",
           "subsections": []
         },
         {
           "section_id": "s2",
           "title": "Data Retention",
-          "content": "We retain customer data for as long as necessary. Upon completion of service, data may be archived indefinitely.",
+          "content": "We retain customer data for as long as necessary. Upon completion of service, data may be archived indefinitely. However, we do specify a maximum retention period of 30 days for temporary session cookies.",
+          "subsections": []
+        },
+        {
+          "section_id": "s3",
+          "title": "User Rights",
+          "content": "Users can request access to their data. We may decline deletion requests at our sole discretion if we deem the data valuable for internal analytics. We provide an opt-out link for marketing emails at the bottom of all communications.",
           "subsections": []
         }
       ]
@@ -43,9 +49,42 @@
         "evidence_passage": "data may be archived indefinitely",
         "evidence_location": "privacy_policy.s2",
         "canonical_remediation_keywords": ["maximum period", "retention limit", "delete after"]
+      },
+      {
+        "gap_id": "gap_2",
+        "clause_ref": "privacy_policy.s1",
+        "gap_type": "data_minimization",
+        "severity": "medium",
+        "framework": "GDPR",
+        "article": "Article 5(1)(c)",
+        "description": "Collecting all available browser data violates data minimization principles.",
+        "evidence_passage": "collect all available usage data from your browser",
+        "evidence_location": "privacy_policy.s1",
+        "canonical_remediation_keywords": ["minimum necessary", "strictly necessary", "limit collection"]
+      },
+      {
+        "gap_id": "gap_3",
+        "clause_ref": "privacy_policy.s3",
+        "gap_type": "data_subject_rights",
+        "severity": "high",
+        "framework": "GDPR",
+        "article": "Article 17",
+        "description": "Cannot arbitrarily decline deletion requests for internal analytics.",
+        "evidence_passage": "decline deletion requests at our sole discretion",
+        "evidence_location": "privacy_policy.s3",
+        "canonical_remediation_keywords": ["right to erasure", "delete upon request", "legal exceptions"]
       }
     ],
-    "red_herrings": [],
+    "red_herrings": [
+      {
+        "clause_ref": "privacy_policy.s2",
+        "reason_not_a_gap": "Temporary session cookies have a clearly defined 30-day maximum retention period, which is compliant."
+      },
+      {
+        "clause_ref": "privacy_policy.s3",
+        "reason_not_a_gap": "The marketing email opt-out link meets basic consent withdrawal standards."
+      }
+    ],
     "conflicts": [],
     "incident": null,
     "max_steps": 15,

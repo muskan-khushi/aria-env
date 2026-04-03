@@ -1,7 +1,8 @@
+import { useState, useEffect } from 'react';
 import { Trophy } from 'lucide-react';
 import { ResponsiveContainer, BarChart, Bar, ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ZAxis } from 'recharts';
 
-const mockLeaderboard = [
+const fallbackLeaderboard = [
   { rank: 1, agent: "GPT-4o-mini (Multi)", easy: 0.94, medium: 0.71, hard: 0.52, expert: 0.33, avg: 0.63, status: "baseline", precision: 0.88, recall: 0.75 },
   { rank: 2, agent: "GPT-4o-mini (Single)", easy: 0.87, medium: 0.63, hard: 0.44, expert: 0.28, avg: 0.56, status: "baseline", precision: 0.81, recall: 0.62 },
   { rank: 3, agent: "GPT-3.5-turbo", easy: 0.72, medium: 0.48, hard: 0.31, expert: 0.17, avg: 0.42, status: "baseline", precision: 0.65, recall: 0.45 },
@@ -9,6 +10,48 @@ const mockLeaderboard = [
 ];
 
 export default function Leaderboard() {
+  const [data, setData] = useState(fallbackLeaderboard);
+
+  useEffect(() => {
+    fetch('/aria/leaderboard')
+      .then(res => res.json())
+      .then(result => {
+        if (result && result.results && result.results.length > 0) {
+          const agents: Record<string, any> = {};
+          const modelName = result.model || "Local Model";
+          result.results.forEach((r: any) => {
+            if (!agents[r.agent]) {
+              agents[r.agent] = {
+                agent: `${modelName} (${r.agent})`,
+                easy: 0, medium: 0, hard: 0, expert: 0,
+                status: "baseline",
+                precisions: [], recalls: []
+              };
+            }
+            agents[r.agent][r.task] = r.score;
+            agents[r.agent].precisions.push(r.precision || 0);
+            agents[r.agent].recalls.push(r.recall || 0);
+          });
+          
+          const formatted = Object.values(agents).map((a: any) => {
+             const avgScore = (a.easy + a.medium + a.hard + a.expert) / 4;
+             const avgPrec = a.precisions.reduce((acc: number, v: number) => acc + v, 0) / Math.max(1, a.precisions.length);
+             const avgRec = a.recalls.reduce((acc: number, v: number) => acc + v, 0) / Math.max(1, a.recalls.length);
+             return {
+               ...a,
+               avg: avgScore,
+               precision: avgPrec,
+               recall: avgRec
+             };
+          });
+          
+          formatted.sort((a, b) => b.avg - a.avg);
+          formatted.forEach((a, idx) => a.rank = idx + 1);
+          setData(formatted);
+        }
+      })
+      .catch(err => console.error("Failed to fetch leaderboard:", err));
+  }, []);
   return (
     <div className="h-full matte-panel bg-white p-8 flex flex-col gap-8 animate-in fade-in duration-500 overflow-y-auto">
       <div className="flex justify-between items-end">
@@ -23,7 +66,7 @@ export default function Leaderboard() {
         <div className="p-4 border border-aria-border rounded-xl bg-[#FAFAFD] flex flex-col">
           <h3 className="text-xs font-bold text-aria-textMuted uppercase tracking-widest mb-4">Difficulty Spread</h3>
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={mockLeaderboard} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
+            <BarChart data={data} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E4DDF4" />
               <XAxis dataKey="agent" tick={{ fontSize: 10, fill: '#6B5B81' }} axisLine={false} tickLine={false} />
               <YAxis tick={{ fontSize: 10, fill: '#6B5B81' }} axisLine={false} tickLine={false} />
@@ -44,7 +87,7 @@ export default function Leaderboard() {
               <YAxis type="number" dataKey="recall" name="Recall" domain={[0, 1]} tick={{ fontSize: 10, fill: '#6B5B81' }} axisLine={false} tickLine={false} />
               <ZAxis type="category" dataKey="agent" name="Agent" />
               <Tooltip cursor={{ strokeDasharray: '3 3' }} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 20px rgba(109, 40, 217, 0.1)' }} />
-              <Scatter name="Agents" data={mockLeaderboard} fill="#6D28D9" />
+              <Scatter name="Agents" data={data} fill="#6D28D9" />
             </ScatterChart>
           </ResponsiveContainer>
         </div>
@@ -66,7 +109,7 @@ export default function Leaderboard() {
             </tr>
           </thead>
           <tbody className="divide-y divide-aria-border">
-            {mockLeaderboard.map((row, i) => (
+            {data.map((row, i) => (
               <tr key={i} className="hover:bg-gray-50 transition">
                 <td className="p-4 font-bold text-aria-textMain">{row.rank === 1 ? <Trophy className="w-4 h-4 text-amber-500" /> : `#${row.rank}`}</td>
                 <td className="p-4 font-bold text-aria-textMain">{row.agent}</td>

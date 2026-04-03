@@ -18,17 +18,17 @@ export default function FindingsPanel({ findings }: FindingsPanelProps) {
             <div className="h-full flex items-center justify-center text-xs text-aria-textMuted italic">Awaiting findings...</div>
           ) : (
             findings.map((finding) => (
-              <div key={finding.id} className="bg-white border border-aria-border p-4 rounded-xl shadow-sm animate-in fade-in zoom-in-95 duration-500">
+              <div key={finding.finding_id} className="bg-white border border-aria-border p-4 rounded-xl shadow-sm animate-in fade-in zoom-in-95 duration-500">
                 <div className="flex justify-between items-start mb-3">
                   <div className="flex items-center gap-2">
                     {finding.severity === 'high' ? <ShieldAlert className="w-4 h-4 text-pastel-blushText" /> : <AlertTriangle className="w-4 h-4 text-pastel-peachText" />}
                     <span className="text-xs font-bold uppercase tracking-wider text-aria-textMain">{finding.framework} Gap</span>
                   </div>
                   <span className={`text-[10px] font-bold px-2 py-1 rounded-md uppercase border ${finding.severity === 'high' ? 'bg-pastel-blush text-pastel-blushText border-pastel-blushBorder' : 'bg-pastel-peach text-pastel-peachText border-pastel-peachBorder'}`}>
-                    {finding.type.replace('_', ' ')}
+                    {finding.gap_type?.replace('_', ' ')}
                   </span>
                 </div>
-                <p className="text-sm text-aria-textMuted mb-4 leading-relaxed">{finding.text}</p>
+                <p className="text-sm text-aria-textMuted mb-4 leading-relaxed">{finding.description}</p>
                 <div className="flex items-center justify-between pt-3 border-t border-aria-border">
                   <div className="flex items-center gap-1.5 text-xs font-semibold text-pastel-sageText">
                     <CheckCircle2 className="w-4 h-4" /> Evidence Cited

@@ -18,12 +18,12 @@ async def frameworks():
 # ─── GET /leaderboard ─────────────────────────────────────────────────────────
 
 @router.get("/leaderboard")
-async def leaderboard():
-    if BASELINE_CACHE.exists():
-        with open(BASELINE_CACHE) as f:
-            data = json.load(f)
-        return {"entries": data.get("results", []), "source": "baseline_cache"}
-    return {"entries": [], "source": "empty"}
+async def get_leaderboard():
+    path = Path(__file__).parent.parent / "baseline" / "baseline_results.json"
+    if path.exists():
+        with open(path) as f:
+            return json.load(f)
+    return {"results": []}
 
 # ─── WebSocket /ws/{session_id} ───────────────────────────────────────────────
 
