@@ -1,4 +1,4 @@
-````markdown
+
 # ARIA — Agentic Regulatory Intelligence Architecture
 
 [![OpenEnv](https://img.shields.io/badge/OpenEnv-Compliant-2563EB)](https://github.com/huggingface/openenv)
