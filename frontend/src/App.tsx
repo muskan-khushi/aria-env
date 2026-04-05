@@ -9,7 +9,6 @@ import TaskExplorer from './components/TaskExplorer';
 import Leaderboard from './components/Leaderboard';
 import EpisodeViewer from './components/EpisodeViewer';
 
-// --- WIRING: CONFIGURATION ---
 const API_BASE = window.location.origin;
 const WS_PROTOCOL = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
 const WS_URL = `${WS_PROTOCOL}//${window.location.host}/aria/ws`;
@@ -31,6 +30,11 @@ export default function App() {
   const [replaySteps, setReplaySteps] = useState<any[]>([]);
 
   const logEndRef = useRef<HTMLDivElement>(null);
+  // Ref map for each section DOM node so we can scroll to it
+  const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  // Ref for the document scroll container
+  const docScrollRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => { logEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [logs]);
 
   useEffect(() => {
@@ -51,7 +55,7 @@ export default function App() {
         }]);
         setFindings(obs.active_findings);
         if (data.action.action_type === 'request_section') {
-           setActiveSection(data.action.section_id);
+          setActiveSection(data.action.section_id);
         }
         setReplaySteps(prev => [...prev, {
           step: data.step_number,
@@ -80,6 +84,7 @@ export default function App() {
   const handleLaunch = async () => {
     setIsDemoRunning(true);
     setLogs(["Requesting environment reset..."]);
+    sectionRefs.current = {}; // clear section refs on new run
     
     try {
       const response = await fetch(`${API_BASE}/reset`, {
@@ -102,8 +107,24 @@ export default function App() {
     }
   };
 
+  /**
+   * Called when user clicks "View Clause" on a finding.
+   * Sets the active section (highlights it) and scrolls to it in the doc viewer.
+   */
+  const handleViewClause = (sectionId: string) => {
+    setActiveSection(sectionId);
+    // Switch to monitor tab in case user is on another tab
+    setActiveTab('monitor');
+    // Scroll after a short delay to let the highlight render
+    setTimeout(() => {
+      const el = sectionRefs.current[sectionId];
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }, 100);
+  };
+
   return (
-    // FIX 1: Use min-h-screen instead of fixed height, allow page to grow
     <div className={`min-h-screen p-6 flex flex-col transition-colors duration-500 ${activeIncident ? 'bg-pastel-blush' : 'bg-aria-bg'}`}>
       <div className={`w-full max-w-7xl mx-auto flex flex-col flex-1 matte-panel p-6 transition-all duration-500 ${showTaskModal || activeIncident ? 'scale-[0.98] blur-[2px] opacity-60' : ''}`}>
         
@@ -138,22 +159,23 @@ export default function App() {
           </div>
         </header>
 
-        {/* FIX 2: Tab content area — no fixed height, no overflow-hidden, flex-1 to fill */}
         <div className="flex-1 relative min-h-0">
 
           {/* LIVE MONITOR VIEW */}
           {activeTab === 'monitor' && (
-            // FIX 3: Grid with explicit height using calc so all 3 cols fill viewport properly
             <div className="grid grid-cols-12 gap-6" style={{ minHeight: '680px' }}>
               
-              {/* Left: Document Viewer — flex col, fixed height, internal scroll */}
+              {/* Left: Document Viewer */}
               <div className="col-span-4 flex flex-col gap-3 min-h-0">
                 <div className="flex items-center gap-2 pl-1 flex-shrink-0">
                   <FileText className="w-4 h-4 text-aria-textMuted" />
                   <h2 className="text-xs font-bold text-aria-textMuted uppercase tracking-widest">Active Document</h2>
                 </div>
-                {/* FIX 4: Explicit height on scroll container */}
-                <div className="matte-panel p-6 bg-white overflow-y-auto" style={{ height: '640px' }}>
+                <div
+                  ref={docScrollRef}
+                  className="matte-panel p-6 bg-white overflow-y-auto"
+                  style={{ height: '640px' }}
+                >
                   {currentDoc ? (
                     <>
                       <div className="border-b border-aria-border pb-4 mb-6">
@@ -162,12 +184,27 @@ export default function App() {
                       </div>
                       <div className="flex flex-col gap-4 font-serif">
                         {currentDoc.sections.map((sec: any) => {
-                          const isFlagged = findings.some(f => f.clause_ref.includes(sec.section_id));
+                          const isFlagged = findings.some(f => f.clause_ref?.includes(sec.section_id));
                           const isActive = activeSection === sec.section_id;
                           return (
-                            <div key={sec.section_id} className={`p-4 rounded-xl transition-all duration-500 ${isFlagged ? 'bg-pastel-blush border border-pastel-blushBorder shadow-sm' : isActive ? 'bg-pastel-peach border border-pastel-peachBorder shadow-sm scale-[1.02]' : 'hover:bg-gray-50 border border-transparent'}`}>
+                            <div
+                              key={sec.section_id}
+                              // Register each section's DOM node so handleViewClause can scroll to it
+                              ref={(el) => { sectionRefs.current[sec.section_id] = el; }}
+                              className={`p-4 rounded-xl transition-all duration-500 ${
+                                isFlagged
+                                  ? 'bg-pastel-blush border border-pastel-blushBorder shadow-sm'
+                                  : isActive
+                                  ? 'bg-pastel-peach border border-pastel-peachBorder shadow-sm scale-[1.02]'
+                                  : 'hover:bg-gray-50 border border-transparent'
+                              }`}
+                            >
                               <h4 className="font-semibold text-aria-textMain mb-2 font-sans text-sm">{sec.title}</h4>
-                              <p className={`text-sm leading-relaxed ${isFlagged ? 'text-pastel-blushText' : isActive ? 'text-pastel-peachText' : 'text-gray-600'}`}>{sec.content}</p>
+                              <p className={`text-sm leading-relaxed ${
+                                isFlagged ? 'text-pastel-blushText' : isActive ? 'text-pastel-peachText' : 'text-gray-600'
+                              }`}>
+                                {sec.content}
+                              </p>
                             </div>
                           );
                         })}
@@ -189,14 +226,17 @@ export default function App() {
                 </div>
                 <div className="flex flex-col gap-3 flex-1 min-h-0">
                   <h2 className="text-xs font-bold text-aria-textMuted uppercase tracking-widest pl-1 flex-shrink-0">Agent Reasoning Log</h2>
-                  {/* FIX 5: Log panel with explicit height and overflow-y-auto */}
-                  <div className="matte-panel p-5 bg-[#FAFAFD] overflow-y-auto flex flex-col gap-3" style={{ height: '360px' }}>
+                  <div
+                    className="matte-panel p-5 bg-[#FAFAFD] overflow-y-auto flex flex-col gap-3"
+                    style={{ height: '360px' }}
+                  >
                     {logs.map((log, index) => (
                       <div key={index} className={`flex gap-3 items-start border-b border-aria-border pb-3 ${log.includes("CRITICAL") ? 'text-pastel-blushText font-bold' : ''}`}>
                         <div className="min-w-6 mt-0.5 flex-shrink-0">
-                          {log.includes("CRITICAL") 
-                            ? <Siren className="w-4 h-4 text-pastel-blushText animate-pulse" /> 
-                            : <Activity className="w-4 h-4 text-aria-accent" />}
+                          {log.includes("CRITICAL")
+                            ? <Siren className="w-4 h-4 text-pastel-blushText animate-pulse" />
+                            : <Activity className="w-4 h-4 text-aria-accent" />
+                          }
                         </div>
                         <p className="text-xs leading-relaxed">{log}</p>
                       </div>
@@ -206,25 +246,23 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Right: Findings Panel */}
-              {/* FIX 6: Wrap FindingsPanel in a height-constrained container */}
-              <div className="col-span-4 flex flex-col min-h-0 overflow-y-auto" style={{ maxHeight: '680px' }}>
-                <FindingsPanel findings={findings} />
-              </div>
-            </div>
-          )}
-
-          {/* Replay Tab */}
-          {activeTab === 'replay' && (
-            <div style={{ minHeight: '680px' }}>
-              <EpisodeViewer 
-                replaySteps={replaySteps.length > 0 ? replaySteps : undefined} 
-                document={currentDoc || undefined} 
+              {/* Right: Findings Panel — onViewClause wired here */}
+              <FindingsPanel
+                findings={findings}
+                onViewClause={handleViewClause}
               />
             </div>
           )}
 
-          {/* Leaderboard Tab */}
+          {activeTab === 'replay' && (
+            <div style={{ minHeight: '680px' }}>
+              <EpisodeViewer
+                replaySteps={replaySteps.length > 0 ? replaySteps : undefined}
+                document={currentDoc || undefined}
+              />
+            </div>
+          )}
+
           {activeTab === 'leaderboard' && (
             <div style={{ minHeight: '680px' }}>
               <Leaderboard />
@@ -233,12 +271,12 @@ export default function App() {
         </div>
       </div>
 
-      <TaskExplorer 
-        show={showTaskModal} 
-        onClose={() => setShowTaskModal(false)} 
+      <TaskExplorer
+        show={showTaskModal}
+        onClose={() => setShowTaskModal(false)}
         onLaunch={handleLaunch}
-        selectedTask={selectedTask} 
-        setSelectedTask={setSelectedTask} 
+        selectedTask={selectedTask}
+        setSelectedTask={setSelectedTask}
       />
 
       {activeIncident && (
