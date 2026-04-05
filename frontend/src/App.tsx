@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { 
-  FileText, Activity, Sparkles, Settings2, AlertOctagon, Trophy, History, Siren
+  FileText, Activity, Sparkles, Settings2, AlertOctagon, Trophy, History, Siren, Download
 } from 'lucide-react';
 
 import RewardChart from './components/RewardChart';
@@ -8,6 +8,7 @@ import FindingsPanel from './components/FindingsPanel';
 import TaskExplorer from './components/TaskExplorer';
 import Leaderboard from './components/Leaderboard';
 import EpisodeViewer from './components/EpisodeViewer';
+import ReportModal from './components/ReportModal';
 
 const API_BASE = window.location.origin;
 const WS_PROTOCOL = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -18,6 +19,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<'monitor' | 'leaderboard' | 'replay'>('monitor');
 
   const [isDemoRunning, setIsDemoRunning] = useState(false);
+  const [isDemoComplete, setIsDemoComplete] = useState(false);
   const [activeSection, setActiveSection] = useState<string | null>(null);
   const [logs, setLogs] = useState<string[]>(["Awaiting run initialization..."]);
   const [chartData, setChartData] = useState([{ step: 0, reward: 0, cumulative: 0 }]);
@@ -25,15 +27,13 @@ export default function App() {
   const [currentDoc, setCurrentDoc] = useState<any>(null);
   
   const [showTaskModal, setShowTaskModal] = useState(false);
+  const [showReportModal, setShowReportModal] = useState(false);
   const [selectedTask, setSelectedTask] = useState('easy');
   const [activeIncident, setActiveIncident] = useState<any | null>(null);
   const [replaySteps, setReplaySteps] = useState<any[]>([]);
 
   const logEndRef = useRef<HTMLDivElement>(null);
-  // Ref map for each section DOM node so we can scroll to it
   const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({});
-  // Ref for the document scroll container
-  const docScrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => { logEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [logs]);
 
@@ -74,6 +74,7 @@ export default function App() {
 
       if (data.type === 'episode_complete') {
         setIsDemoRunning(false);
+        setIsDemoComplete(true);
         setLogs(prev => ["🏁 Episode Complete. Final Grade available in Leaderboard.", ...prev]);
       }
     };
@@ -83,8 +84,9 @@ export default function App() {
 
   const handleLaunch = async () => {
     setIsDemoRunning(true);
+    setIsDemoComplete(false);
     setLogs(["Requesting environment reset..."]);
-    sectionRefs.current = {}; // clear section refs on new run
+    sectionRefs.current = {};
     
     try {
       const response = await fetch(`${API_BASE}/reset`, {
@@ -99,6 +101,8 @@ export default function App() {
       const initialObs = await response.json();
       setCurrentDoc(initialObs.documents[0]);
       setReplaySteps([]);
+      setChartData([{ step: 0, reward: 0, cumulative: 0 }]);
+      setFindings([]);
       setLogs(prev => ["Environment Ready. Waiting for Agent actions...", ...prev]);
       setShowTaskModal(false);
     } catch (err) {
@@ -107,22 +111,17 @@ export default function App() {
     }
   };
 
-  /**
-   * Called when user clicks "View Clause" on a finding.
-   * Sets the active section (highlights it) and scrolls to it in the doc viewer.
-   */
   const handleViewClause = (sectionId: string) => {
     setActiveSection(sectionId);
-    // Switch to monitor tab in case user is on another tab
     setActiveTab('monitor');
-    // Scroll after a short delay to let the highlight render
     setTimeout(() => {
       const el = sectionRefs.current[sectionId];
-      if (el) {
-        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }, 100);
   };
+
+  // Download button is enabled once we have findings or the episode is complete
+  const canDownload = findings.length > 0 || isDemoComplete || replaySteps.length > 0;
 
   return (
     <div className={`min-h-screen p-6 flex flex-col transition-colors duration-500 ${activeIncident ? 'bg-pastel-blush' : 'bg-aria-bg'}`}>
@@ -149,11 +148,31 @@ export default function App() {
             </button>
           </nav>
 
-          <div className="flex items-center gap-4 text-sm font-bold text-aria-textMuted uppercase tracking-widest min-w-[250px] justify-end">
-            <button onClick={() => setShowTaskModal(true)} disabled={isDemoRunning} className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-100 transition text-aria-textMain disabled:opacity-50">
+          <div className="flex items-center gap-3 text-sm font-bold text-aria-textMuted uppercase tracking-widest min-w-[300px] justify-end">
+            {/* Download Report button — appears when there's data */}
+            <button
+              onClick={() => setShowReportModal(true)}
+              disabled={!canDownload}
+              title={canDownload ? 'Download audit report as PDF' : 'Run an episode first'}
+              className="flex items-center gap-2 px-3 py-2 rounded-lg border border-aria-border hover:bg-gray-50 transition text-aria-textMain disabled:opacity-30 disabled:cursor-not-allowed"
+            >
+              <Download className="w-4 h-4" />
+              <span className="text-xs">Report</span>
+            </button>
+
+            <button
+              onClick={() => setShowTaskModal(true)}
+              disabled={isDemoRunning}
+              className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-100 transition text-aria-textMain disabled:opacity-50"
+            >
               <Settings2 className="w-4 h-4" /> Config
             </button>
-            <button onClick={handleLaunch} disabled={isDemoRunning} className="flex items-center gap-2 bg-aria-accent text-white px-5 py-2.5 rounded-lg hover:bg-violet-600 transition shadow-premium disabled:opacity-50">
+
+            <button
+              onClick={handleLaunch}
+              disabled={isDemoRunning}
+              className="flex items-center gap-2 bg-aria-accent text-white px-5 py-2.5 rounded-lg hover:bg-violet-600 transition shadow-premium disabled:opacity-50"
+            >
               <Sparkles className="w-4 h-4" /> {isDemoRunning ? 'Running...' : 'Launch'}
             </button>
           </div>
@@ -171,11 +190,7 @@ export default function App() {
                   <FileText className="w-4 h-4 text-aria-textMuted" />
                   <h2 className="text-xs font-bold text-aria-textMuted uppercase tracking-widest">Active Document</h2>
                 </div>
-                <div
-                  ref={docScrollRef}
-                  className="matte-panel p-6 bg-white overflow-y-auto"
-                  style={{ height: '640px' }}
-                >
+                <div className="matte-panel p-6 bg-white overflow-y-auto" style={{ height: '640px' }}>
                   {currentDoc ? (
                     <>
                       <div className="border-b border-aria-border pb-4 mb-6">
@@ -189,7 +204,6 @@ export default function App() {
                           return (
                             <div
                               key={sec.section_id}
-                              // Register each section's DOM node so handleViewClause can scroll to it
                               ref={(el) => { sectionRefs.current[sec.section_id] = el; }}
                               className={`p-4 rounded-xl transition-all duration-500 ${
                                 isFlagged
@@ -226,10 +240,7 @@ export default function App() {
                 </div>
                 <div className="flex flex-col gap-3 flex-1 min-h-0">
                   <h2 className="text-xs font-bold text-aria-textMuted uppercase tracking-widest pl-1 flex-shrink-0">Agent Reasoning Log</h2>
-                  <div
-                    className="matte-panel p-5 bg-[#FAFAFD] overflow-y-auto flex flex-col gap-3"
-                    style={{ height: '360px' }}
-                  >
+                  <div className="matte-panel p-5 bg-[#FAFAFD] overflow-y-auto flex flex-col gap-3" style={{ height: '360px' }}>
                     {logs.map((log, index) => (
                       <div key={index} className={`flex gap-3 items-start border-b border-aria-border pb-3 ${log.includes("CRITICAL") ? 'text-pastel-blushText font-bold' : ''}`}>
                         <div className="min-w-6 mt-0.5 flex-shrink-0">
@@ -246,11 +257,8 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Right: Findings Panel — onViewClause wired here */}
-              <FindingsPanel
-                findings={findings}
-                onViewClause={handleViewClause}
-              />
+              {/* Right: Findings Panel */}
+              <FindingsPanel findings={findings} onViewClause={handleViewClause} />
             </div>
           )}
 
@@ -271,12 +279,23 @@ export default function App() {
         </div>
       </div>
 
+      {/* Modals */}
       <TaskExplorer
         show={showTaskModal}
         onClose={() => setShowTaskModal(false)}
         onLaunch={handleLaunch}
         selectedTask={selectedTask}
         setSelectedTask={setSelectedTask}
+      />
+
+      <ReportModal
+        show={showReportModal}
+        onClose={() => setShowReportModal(false)}
+        findings={findings}
+        chartData={chartData}
+        currentDoc={currentDoc}
+        selectedTask={selectedTask}
+        replaySteps={replaySteps}
       />
 
       {activeIncident && (
