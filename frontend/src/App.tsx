@@ -10,21 +10,20 @@ import Leaderboard from './components/Leaderboard';
 import EpisodeViewer from './components/EpisodeViewer';
 
 // --- WIRING: CONFIGURATION ---
-const API_BASE = window.location.origin;  // Works in dev (proxied) and production (same origin)
+const API_BASE = window.location.origin;
 const WS_PROTOCOL = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-const WS_URL = `${WS_PROTOCOL}//${window.location.host}/aria/ws`; // /aria prefix matches backend router mount
-const FIXED_SESSION_ID = "hackathon_demo_001"; // Must match your Python script!
+const WS_URL = `${WS_PROTOCOL}//${window.location.host}/aria/ws`;
+const FIXED_SESSION_ID = "hackathon_demo_001";
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<'monitor' | 'leaderboard' | 'replay'>('monitor');
 
-  // Monitor State
   const [isDemoRunning, setIsDemoRunning] = useState(false);
   const [activeSection, setActiveSection] = useState<string | null>(null);
   const [logs, setLogs] = useState<string[]>(["Awaiting run initialization..."]);
   const [chartData, setChartData] = useState([{ step: 0, reward: 0, cumulative: 0 }]);
   const [findings, setFindings] = useState<any[]>([]);
-  const [currentDoc, setCurrentDoc] = useState<any>(null); // Real doc from backend
+  const [currentDoc, setCurrentDoc] = useState<any>(null);
   
   const [showTaskModal, setShowTaskModal] = useState(false);
   const [selectedTask, setSelectedTask] = useState('easy');
@@ -34,10 +33,8 @@ export default function App() {
   const logEndRef = useRef<HTMLDivElement>(null);
   useEffect(() => { logEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [logs]);
 
-  // --- WIRING: WEBSOCKET LISTENER ---
   useEffect(() => {
     const socket = new WebSocket(`${WS_URL}/${FIXED_SESSION_ID}`);
-
     socket.onopen = () => console.log("✅ WebSocket Linked");
     
     socket.onmessage = (event) => {
@@ -46,26 +43,16 @@ export default function App() {
       if (data.type === 'step') {
         setIsDemoRunning(true);
         const obs = data.observation;
-        
-        // 1. Update Logs
         setLogs(prev => [data.reward_reason || `Action: ${data.action.action_type}`, ...prev]);
-        
-        // 2. Update Charts
         setChartData(prev => [...prev, { 
           step: data.step_number, 
           reward: data.reward, 
           cumulative: obs.cumulative_reward 
         }]);
-
-        // 3. Update Findings
         setFindings(obs.active_findings);
-
-        // 4. Update UI Highlighting
         if (data.action.action_type === 'request_section') {
            setActiveSection(data.action.section_id);
         }
-
-        // 5. Build Replay Context
         setReplaySteps(prev => [...prev, {
           step: data.step_number,
           action: data.action.action_type + (data.action.clause_ref ? ` (${data.action.clause_ref})` : ''),
@@ -90,7 +77,6 @@ export default function App() {
     return () => socket.close();
   }, []);
 
-  // --- WIRING: API LAUNCHER ---
   const handleLaunch = async () => {
     setIsDemoRunning(true);
     setLogs(["Requesting environment reset..."]);
@@ -106,8 +92,8 @@ export default function App() {
       });
       
       const initialObs = await response.json();
-      setCurrentDoc(initialObs.documents[0]); // Load the real first document
-      setReplaySteps([]); // Reset replay on new run
+      setCurrentDoc(initialObs.documents[0]);
+      setReplaySteps([]);
       setLogs(prev => ["Environment Ready. Waiting for Agent actions...", ...prev]);
       setShowTaskModal(false);
     } catch (err) {
@@ -117,11 +103,12 @@ export default function App() {
   };
 
   return (
-    <div className={`min-h-screen p-8 flex items-center justify-center relative transition-colors duration-500 ${activeIncident ? 'bg-pastel-blush' : 'bg-aria-bg'}`}>
-      <div className={`w-full max-w-7xl matte-panel p-8 transition-all duration-500 ${showTaskModal || activeIncident ? 'scale-[0.98] blur-[2px] opacity-60' : ''}`}>
+    // FIX 1: Use min-h-screen instead of fixed height, allow page to grow
+    <div className={`min-h-screen p-6 flex flex-col transition-colors duration-500 ${activeIncident ? 'bg-pastel-blush' : 'bg-aria-bg'}`}>
+      <div className={`w-full max-w-7xl mx-auto flex flex-col flex-1 matte-panel p-6 transition-all duration-500 ${showTaskModal || activeIncident ? 'scale-[0.98] blur-[2px] opacity-60' : ''}`}>
         
-        {/* Header - Stays mostly the same */}
-        <header className="flex justify-between items-center mb-8 pb-4 border-b border-aria-border relative">
+        {/* Header */}
+        <header className="flex justify-between items-center mb-6 pb-4 border-b border-aria-border relative flex-shrink-0">
           <h1 className="text-3xl font-light tracking-wide flex items-center gap-3 text-aria-textMain">
             <div className="w-8 h-8 rounded-lg bg-aria-accent flex items-center justify-center shadow-premium">
               <Activity className="text-white w-5 h-5" />
@@ -151,18 +138,22 @@ export default function App() {
           </div>
         </header>
 
-        <div className="h-[650px] relative overflow-hidden">
+        {/* FIX 2: Tab content area — no fixed height, no overflow-hidden, flex-1 to fill */}
+        <div className="flex-1 relative min-h-0">
+
           {/* LIVE MONITOR VIEW */}
-          <div className={`absolute inset-0 transition-all duration-500 ${activeTab === 'monitor' ? 'opacity-100 pointer-events-auto translate-x-0' : 'opacity-0 pointer-events-none -translate-x-8'}`}>
-            <div className="grid grid-cols-12 gap-6 h-full">
+          {activeTab === 'monitor' && (
+            // FIX 3: Grid with explicit height using calc so all 3 cols fill viewport properly
+            <div className="grid grid-cols-12 gap-6" style={{ minHeight: '680px' }}>
               
-              {/* Left: Real Document Viewer */}
-              <div className="col-span-4 flex flex-col gap-3">
-                <div className="flex items-center gap-2 pl-1">
+              {/* Left: Document Viewer — flex col, fixed height, internal scroll */}
+              <div className="col-span-4 flex flex-col gap-3 min-h-0">
+                <div className="flex items-center gap-2 pl-1 flex-shrink-0">
                   <FileText className="w-4 h-4 text-aria-textMuted" />
                   <h2 className="text-xs font-bold text-aria-textMuted uppercase tracking-widest">Active Document</h2>
                 </div>
-                <div className="flex-1 matte-panel p-6 overflow-y-auto bg-white pr-2">
+                {/* FIX 4: Explicit height on scroll container */}
+                <div className="matte-panel p-6 bg-white overflow-y-auto" style={{ height: '640px' }}>
                   {currentDoc ? (
                     <>
                       <div className="border-b border-aria-border pb-4 mb-6">
@@ -178,7 +169,7 @@ export default function App() {
                               <h4 className="font-semibold text-aria-textMain mb-2 font-sans text-sm">{sec.title}</h4>
                               <p className={`text-sm leading-relaxed ${isFlagged ? 'text-pastel-blushText' : isActive ? 'text-pastel-peachText' : 'text-gray-600'}`}>{sec.content}</p>
                             </div>
-                          )
+                          );
                         })}
                       </div>
                     </>
@@ -190,21 +181,24 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Center: Real Metrics & Stream */}
-              <div className="col-span-4 flex flex-col gap-6">
-                <div className="flex-1 flex flex-col gap-3">
+              {/* Center: Chart + Log */}
+              <div className="col-span-4 flex flex-col gap-4 min-h-0">
+                <div className="flex flex-col gap-3 flex-shrink-0">
                   <h2 className="text-xs font-bold text-aria-textMuted uppercase tracking-widest pl-1">Performance Curve</h2>
                   <RewardChart data={chartData} />
                 </div>
-                <div className="flex-[0.8] flex flex-col gap-3">
-                  <h2 className="text-xs font-bold text-aria-textMuted uppercase tracking-widest pl-1">Agent Reasoning Log</h2>
-                  <div className="flex-1 matte-panel p-5 bg-[#FAFAFD] flex flex-col gap-4 overflow-y-auto pr-2">
+                <div className="flex flex-col gap-3 flex-1 min-h-0">
+                  <h2 className="text-xs font-bold text-aria-textMuted uppercase tracking-widest pl-1 flex-shrink-0">Agent Reasoning Log</h2>
+                  {/* FIX 5: Log panel with explicit height and overflow-y-auto */}
+                  <div className="matte-panel p-5 bg-[#FAFAFD] overflow-y-auto flex flex-col gap-3" style={{ height: '360px' }}>
                     {logs.map((log, index) => (
-                      <div key={index} className={`flex gap-3 items-start border-b border-aria-border pb-3 animate-in fade-in slide-in-from-bottom-2 duration-500 ${log.includes("CRITICAL") ? 'text-pastel-blushText font-bold' : ''}`}>
-                          <div className="min-w-6 mt-0.5">
-                            {log.includes("CRITICAL") ? <Siren className="w-4 h-4 text-pastel-blushText animate-pulse" /> : <Activity className="w-4 h-4 text-aria-accent" />}
-                          </div>
-                          <p className="text-xs leading-relaxed">{log}</p>
+                      <div key={index} className={`flex gap-3 items-start border-b border-aria-border pb-3 ${log.includes("CRITICAL") ? 'text-pastel-blushText font-bold' : ''}`}>
+                        <div className="min-w-6 mt-0.5 flex-shrink-0">
+                          {log.includes("CRITICAL") 
+                            ? <Siren className="w-4 h-4 text-pastel-blushText animate-pulse" /> 
+                            : <Activity className="w-4 h-4 text-aria-accent" />}
+                        </div>
+                        <p className="text-xs leading-relaxed">{log}</p>
                       </div>
                     ))}
                     <div ref={logEndRef} />
@@ -213,47 +207,54 @@ export default function App() {
               </div>
 
               {/* Right: Findings Panel */}
-              <FindingsPanel findings={findings} />
+              {/* FIX 6: Wrap FindingsPanel in a height-constrained container */}
+              <div className="col-span-4 flex flex-col min-h-0 overflow-y-auto" style={{ maxHeight: '680px' }}>
+                <FindingsPanel findings={findings} />
+              </div>
             </div>
-          </div>
+          )}
 
-          {/* Leaderboard and Replay stay the same... */}
-          <div className={`absolute inset-0 transition-all duration-500 ${activeTab === 'replay' ? 'opacity-100 pointer-events-auto translate-x-0' : 'opacity-0 pointer-events-none translate-x-8'}`}>
-            <EpisodeViewer 
-               replaySteps={replaySteps.length > 0 ? replaySteps : undefined} 
-               document={currentDoc || undefined} 
-            />
-          </div>
-          <div className={`absolute inset-0 transition-all duration-500 ${activeTab === 'leaderboard' ? 'opacity-100 pointer-events-auto translate-x-0' : 'opacity-0 pointer-events-none translate-x-8'}`}>
-             <Leaderboard />
-          </div>
+          {/* Replay Tab */}
+          {activeTab === 'replay' && (
+            <div style={{ minHeight: '680px' }}>
+              <EpisodeViewer 
+                replaySteps={replaySteps.length > 0 ? replaySteps : undefined} 
+                document={currentDoc || undefined} 
+              />
+            </div>
+          )}
+
+          {/* Leaderboard Tab */}
+          {activeTab === 'leaderboard' && (
+            <div style={{ minHeight: '680px' }}>
+              <Leaderboard />
+            </div>
+          )}
         </div>
       </div>
 
       <TaskExplorer 
         show={showTaskModal} 
         onClose={() => setShowTaskModal(false)} 
-        onLaunch={handleLaunch} // Use the new launcher
+        onLaunch={handleLaunch}
         selectedTask={selectedTask} 
         setSelectedTask={setSelectedTask} 
       />
 
-      {/* Incident Modal Logic stays the same... */}
       {activeIncident && (
-        <div className="absolute inset-0 z-[60] flex items-center justify-center p-8 bg-pastel-blushText/20 backdrop-blur-sm animate-in fade-in duration-300">
-           {/* (Content remains same as your previous App.tsx) */}
-           <div className="w-full max-w-lg bg-white border-2 border-pastel-blushText rounded-2xl p-8 shadow-2xl">
-              <h2 className="text-xl font-bold text-pastel-blushText flex items-center gap-2">
-                 <AlertOctagon className="w-6 h-6" /> DATA BREACH INCIDENT
-              </h2>
-              <p className="mt-4 text-sm text-gray-600">Incident Type: {activeIncident.incident_type}</p>
-              <p className="mt-2 text-sm text-gray-600">Records Impacted: {activeIncident.records_affected}</p>
-              <div className="mt-6 p-4 bg-pastel-blush/20 rounded-lg text-xs font-mono">
-                 Agent executing containment protocol...
-              </div>
-           </div>
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-8 bg-pastel-blushText/20 backdrop-blur-sm animate-in fade-in duration-300">
+          <div className="w-full max-w-lg bg-white border-2 border-pastel-blushText rounded-2xl p-8 shadow-2xl">
+            <h2 className="text-xl font-bold text-pastel-blushText flex items-center gap-2">
+              <AlertOctagon className="w-6 h-6" /> DATA BREACH INCIDENT
+            </h2>
+            <p className="mt-4 text-sm text-gray-600">Incident Type: {activeIncident.incident_type}</p>
+            <p className="mt-2 text-sm text-gray-600">Records Impacted: {activeIncident.records_affected}</p>
+            <div className="mt-6 p-4 bg-pastel-blush/20 rounded-lg text-xs font-mono">
+              Agent executing containment protocol...
+            </div>
+          </div>
         </div>
       )}
     </div>
-  )
+  );
 }
