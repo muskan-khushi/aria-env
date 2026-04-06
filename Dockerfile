@@ -1,4 +1,4 @@
-# Stage 1: Build React frontend
+# Stage 1: Build the Dashboard
 FROM node:20-slim AS frontend-builder
 WORKDIR /app/frontend
 COPY frontend/package*.json ./
@@ -6,33 +6,41 @@ RUN npm ci --silent
 COPY frontend/ .
 RUN npm run build
 
-# Stage 2: Python backend + built frontend
+# Stage 2: Final Production Image
 FROM python:3.11-slim
 WORKDIR /app
 
-# System dependencies
+# Install system utilities
 RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
 
-# Python dependencies
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Set up Hugging Face non-root user (UID 1000)
+RUN useradd -m -u 1000 user
+USER user
+ENV HOME=/home/user \
+    PATH=/home/user/.local/bin:$PATH \
+    PYTHONPATH=/app 
 
-# Application code
-COPY aria/ ./aria/
-COPY api/ ./api/
-COPY tasks/ ./tasks/
-COPY baseline/ ./baseline/
-COPY openenv.yaml .
+# Install Python requirements
+COPY --chown=user requirements.txt .
+RUN pip install --no-cache-dir --user -r requirements.txt
 
-# Built React app
-COPY --from=frontend-builder /app/frontend/dist ./static/
+# Copy application files
+COPY --chown=user aria/ ./aria/
+COPY --chown=user api/ ./api/
+COPY --chown=user tasks/ ./tasks/
+COPY --chown=user inference.py .
+COPY --chown=user openenv.yaml .
 
-# Create writable dirs for SQLite (HF Spaces: /tmp is always writable)
-RUN mkdir -p /tmp/aria_data
+# Copy built frontend to the static directory used by FastAPI
+COPY --from=frontend-builder --chown=user /app/frontend/dist ./static/
 
+# Create a writable directory for local data/logs
+RUN mkdir -p /home/user/aria_data
+
+# The port must be 7860 for HF Spaces
 EXPOSE 7860
 
-HEALTHCHECK --interval=30s --timeout=10s \
-  CMD curl -f http://localhost:7860/health || exit 1
+# Metadata for the Space
+LABEL openenv="compliant"
 
-CMD ["uvicorn", "api.app:app", "--host", "0.0.0.0", "--port", "7860", "--workers", "1", "--log-level", "info"]
+CMD ["python", "-m", "uvicorn", "api.app:app", "--host", "0.0.0.0", "--port", "7860"]
