@@ -51,4 +51,4 @@ EXPOSE 7860
 # Metadata for the Space
 LABEL openenv="compliant"
 
-CMD ["python", "-m", "uvicorn", "api.app:app", "--host", "0.0.0.0", "--port", "7860"]
+CMD ["python", "-m", "uvicorn", "server.app:app", "--host", "0.0.0.0", "--port", "7860"]
