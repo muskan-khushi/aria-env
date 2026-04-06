@@ -92,7 +92,7 @@ function PrecisionRecallChart({ data }: { data: typeof fallbackLeaderboard }) {
           }}
         />
         <Scatter data={data}>
-          {data.map((entry, index) => (
+          {data.map((_, index) => (
             <Cell key={index} fill={AGENT_COLORS[index] ?? '#94A3B8'} />
           ))}
         </Scatter>

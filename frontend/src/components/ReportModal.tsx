@@ -1,5 +1,5 @@
 import { useRef } from 'react';
-import { X, Download, Shield, AlertTriangle, CheckCircle2, Clock } from 'lucide-react';
+import { X, Download} from 'lucide-react';
 
 interface ReportModalProps {
   show: boolean;
