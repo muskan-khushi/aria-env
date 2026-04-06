@@ -193,10 +193,10 @@ class MultiPassAgent:
         Constructs a focused prompt with only the visible section content
         to keep token usage under control (< 20 min runtime guarantee).
         """
-        from baseline.prompts import SYSTEM_PROMPT, build_gap_identification_prompt
+        from baseline.prompts import SYSTEM_PROMPT, build_user_prompt
 
         try:
-            prompt = build_gap_identification_prompt(obs)
+            prompt = build_user_prompt(obs)
             response = self.client.chat.completions.create(
                 model=MODEL_NAME,
                 temperature=_TEMPERATURE,
