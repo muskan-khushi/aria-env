@@ -1,3 +1,13 @@
+---
+title: ARIA - Compliance Audit Agent
+emoji: ⚖️
+colorFrom: indigo
+colorTo: violet
+sdk: docker
+pinned: false
+---
+
+
 # ARIA — Agentic Regulatory Intelligence Architecture
 
 <div align="center">
