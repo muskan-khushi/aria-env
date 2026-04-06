@@ -203,7 +203,7 @@ cd aria
 pip install -r requirements.txt
 
 # Start the API + React dashboard
-uvicorn api.app:app --host 0.0.0.0 --port 7860
+uvicorn server.app:app --host 0.0.0.0 --port 7860
 
 # For live demo and updates on dashboard
 python run_live_demo.py
