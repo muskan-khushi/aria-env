@@ -48,7 +48,7 @@ LLM chatbots and RAG pipelines fail at the actual audit workflow. They cannot:
 
 Open the dashboard and watch an agent audit a GDPR document in real-time:
 
-**[→ https://huggingface.co/spaces/muskankhushi/aria](https://huggingface.co/spaces/muskankhushi/aria)**
+**[→ https://huggingface.co/spaces/muskankhushi/aria](https://huggingface.co/spaces/muskankhushi/aria-compliance-v1)**
 
 The dashboard shows: document sections unlocking as the agent reads, findings appearing with framework badges, a live reward curve (step-level bars + cumulative line), and the agent's reasoning stream. In Expert mode, a red **⚠ BREACH ALERT** fires mid-audit with a live countdown to the regulatory deadline.
 
