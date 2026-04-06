@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { 
-  FileText, Activity, Sparkles, Settings2, AlertOctagon, Trophy, History, Siren, Download
+  FileText, Activity, Sparkles, Settings2, AlertOctagon, Trophy, History, Siren, Download, X
 } from 'lucide-react';
 
 import RewardChart from './components/RewardChart';
@@ -165,7 +165,7 @@ export default function App() {
               disabled={isDemoRunning}
               className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-100 transition text-aria-textMain disabled:opacity-50"
             >
-              <Settings2 className="w-4 h-4" /> Config
+              <Settings2 className="w-4 h-4" /> Select Task
             </button>
 
             <button
@@ -300,7 +300,16 @@ export default function App() {
 
       {activeIncident && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-8 bg-pastel-blushText/20 backdrop-blur-sm animate-in fade-in duration-300">
-          <div className="w-full max-w-lg bg-white border-2 border-pastel-blushText rounded-2xl p-8 shadow-2xl">
+          <div className="w-full max-w-lg bg-white border-2 border-pastel-blushText rounded-2xl p-8 shadow-2xl relative">
+            {/* Close button */}
+            <button
+              onClick={() => setActiveIncident(null)}
+              className="absolute top-4 right-4 p-1.5 rounded-lg hover:bg-gray-100 transition text-gray-400 hover:text-gray-700"
+              title="Dismiss and return to dashboard"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
             <h2 className="text-xl font-bold text-pastel-blushText flex items-center gap-2">
               <AlertOctagon className="w-6 h-6" /> DATA BREACH INCIDENT
             </h2>
@@ -309,6 +318,14 @@ export default function App() {
             <div className="mt-6 p-4 bg-pastel-blush/20 rounded-lg text-xs font-mono">
               Agent executing containment protocol...
             </div>
+
+            {/* Dismiss button */}
+            <button
+              onClick={() => setActiveIncident(null)}
+              className="mt-6 w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border border-gray-200 hover:bg-gray-50 transition text-sm font-medium text-gray-600"
+            >
+              <X className="w-4 h-4" /> Dismiss & Return to Dashboard
+            </button>
           </div>
         </div>
       )}
