@@ -1,9 +1,17 @@
-# Stage 1: Build the Dashboard
+# Stage 1: Build React frontend
 FROM node:20-slim AS frontend-builder
 WORKDIR /app/frontend
+
+# Copy dependency files
 COPY frontend/package*.json ./
-RUN npm ci --silent
+
+# Use install instead of ci for flexibility
+RUN npm install --silent
+
+# Copy the rest of the frontend code
 COPY frontend/ .
+
+# Execute the build
 RUN npm run build
 
 # Stage 2: Final Production Image
