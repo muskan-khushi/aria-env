@@ -34,7 +34,7 @@ RUN pip install --no-cache-dir --user -r requirements.txt
 
 # Copy application files
 COPY --chown=user aria/ ./aria/
-COPY --chown=user api/ ./api/
+COPY --chown=user server/ ./server/
 COPY --chown=user tasks/ ./tasks/
 COPY --chown=user inference.py .
 COPY --chown=user openenv.yaml .

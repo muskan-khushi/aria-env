@@ -6,8 +6,8 @@ from pathlib import Path
 from fastapi import APIRouter, Header, HTTPException
 from pydantic import BaseModel
 from aria.models import ARIAAction
-from api.session import session_manager
-from api.websocket import ws_manager
+from server.session import session_manager
+from server.websocket import ws_manager
 
 router = APIRouter()
 TASKS_DIR = Path(__file__).parent.parent / "tasks"

@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from aria.frameworks import FRAMEWORK_REGISTRY
-from api.websocket import ws_manager
+from server.websocket import ws_manager
 
 router = APIRouter()
 BASELINE_CACHE = Path(__file__).parent.parent / "baseline" / "baseline_results.json"
