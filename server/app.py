@@ -1,7 +1,7 @@
 """ARIA — FastAPI Application Factory"""
 from __future__ import annotations
 import os
-import uvicorn  # Added for the main() entry point
+import uvicorn
 from pathlib import Path
 from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
@@ -29,6 +29,7 @@ app.add_middleware(
 )
 
 # 2. Mount API routes
+# Logic: routes_aria handles /frameworks, /leaderboard, and /demo/start
 app.include_router(openenv_router)
 app.include_router(aria_router, prefix="/aria")
 
@@ -41,7 +42,7 @@ if (STATIC_DIR / "assets").exists():
 async def health(): 
     return {"status": "ok"}
 
-# API path prefixes
+# API path prefixes — ensuring the React SPA doesn't "swallow" API calls
 API_PREFIXES = (
     "reset", "step", "state", "tasks", "grader", "baseline",
     "frameworks", "leaderboard", "ws", "health", "assets", "openapi",
@@ -51,24 +52,16 @@ API_PREFIXES = (
 @app.get("/{full_path:path}")
 async def serve_react(full_path: str):
     index = STATIC_DIR / "index.html"
-    # Ensure we don't intercept API calls
+    # If the path doesn't start with our API prefixes, let React handle it
     if not any(full_path.startswith(prefix) for prefix in API_PREFIXES) and index.exists():
         return FileResponse(str(index))
     
-    # If it's an API route that doesn't exist, FastAPI's router 
-    # would have caught it before this catch-all. 
-    # If we are here and it's not a React route, it's a 404.
     raise HTTPException(status_code=404, detail="Not found")
 
-# --- OPENENV MANDATORY ENTRY POINTS ---
-
 def main():
-    """
-    The explicit entry point that OpenEnv uses to launch your server.
-    Matches the [project.scripts] 'server = "server.app:main"' entry in pyproject.toml.
-    """
-    # Use the string import path so uvicorn can find the app instance
-    uvicorn.run("server.app:app", host="0.0.0.0", port=7860, reload=False)
+    """Entry point for OpenEnv validation and HF Space launch."""
+    PORT = int(os.environ.get("PORT", 7860))
+    uvicorn.run("server.app:app", host="0.0.0.0", port=PORT, reload=False)
 
 if __name__ == "__main__":
     main()

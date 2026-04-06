@@ -1,37 +1,103 @@
 """ARIA — Extended Frontend Routes"""
 from __future__ import annotations
 import json
+import os
+import asyncio
+import httpx
 from pathlib import Path
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect, BackgroundTasks, HTTPException
+from openai import OpenAI
+
+# Internal imports
 from aria.frameworks import FRAMEWORK_REGISTRY
 from server.websocket import ws_manager
+from aria.models import ARIAObservation
+from baseline.agent import MultiPassAgent
 
 router = APIRouter()
 BASELINE_CACHE = Path(__file__).parent.parent / "baseline" / "baseline_results.json"
 
-# ─── GET /frameworks ──────────────────────────────────────────────────────────
+# ─── Internal Background Agent Loop ──────────────────────────────────────────
+
+async def run_internal_audit(task_id: str, session_id: str):
+    """
+    Background worker that runs the MultiPassAgent loop internally.
+    Matches your log's session_id: hackathon_demo_001
+    """
+    PORT = os.environ.get("PORT", "7860")
+    api_base = f"http://127.0.0.1:{PORT}"
+    
+    # 1. Initialize Agent
+    api_key = os.environ.get("HF_TOKEN") or os.environ.get("OPENAI_API_KEY")
+    base_url = os.environ.get("API_BASE_URL")
+    client = OpenAI(api_key=api_key, base_url=base_url) if api_key else None
+    agent = MultiPassAgent(client)
+    
+    async with httpx.AsyncClient(timeout=30.0) as http_client:
+        # 2. Reset Env (Self-pinging the /reset endpoint)
+        headers = {"X-Session-ID": session_id}
+        reset_payload = {"task_name": task_id, "seed": 42, "session_id": session_id}
+        
+        try:
+            resp = await http_client.post(f"{api_base}/reset", json=reset_payload, headers=headers)
+            if resp.status_code != 200:
+                return
+
+            obs_data = resp.json()
+            done = False
+            
+            # 3. Step Loop
+            while not done:
+                obs = ARIAObservation(**obs_data)
+                action = agent.act(obs)
+                
+                # Self-ping /step to trigger the standard logic + WS broadcast
+                step_resp = await http_client.post(
+                    f"{api_base}/step", 
+                    json={"action": action.model_dump()}, 
+                    headers=headers
+                )
+                
+                if step_resp.status_code != 200:
+                    break
+                    
+                result = step_resp.json()
+                obs_data = result["observation"]
+                done = result["done"]
+                
+                # Smooth delay for UI animation
+                await asyncio.sleep(1.5)
+        except Exception as e:
+            print(f"Internal Loop Error: {e}")
+
+# ─── POST /demo/start/{task_id} ───────────────────────────────────────────────
+
+@router.post("/demo/start/{task_id}")
+async def trigger_demo(task_id: str, background_tasks: BackgroundTasks):
+    """Triggers the agent from the UI. Matches the path /aria/demo/start/{task_id}"""
+    # Matches your logs where the WS is listening to hackathon_demo_001
+    session_id = "hackathon_demo_001" 
+    background_tasks.add_task(run_internal_audit, task_id, session_id)
+    return {"message": "Audit triggered", "session_id": session_id}
+
+# ─── Existing Routes (Untouched) ─────────────────────────────────────────────
 
 @router.get("/frameworks")
 async def frameworks():
     return FRAMEWORK_REGISTRY
 
-# ─── GET /leaderboard ─────────────────────────────────────────────────────────
-
 @router.get("/leaderboard")
 async def get_leaderboard():
-    path = Path(__file__).parent.parent / "baseline" / "baseline_results.json"
-    if path.exists():
-        with open(path) as f:
+    if BASELINE_CACHE.exists():
+        with open(BASELINE_CACHE) as f:
             return json.load(f)
     return {"results": []}
-
-# ─── WebSocket /ws/{session_id} ───────────────────────────────────────────────
 
 @router.websocket("/ws/{session_id}")
 async def websocket_endpoint(websocket: WebSocket, session_id: str):
     await ws_manager.connect(session_id, websocket)
     try:
         while True:
-            await websocket.receive_text()  # keep connection alive
+            await websocket.receive_text()
     except WebSocketDisconnect:
         ws_manager.disconnect(session_id, websocket)

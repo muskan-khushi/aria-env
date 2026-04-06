@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { X, Play, Zap, Layers, Swords, Siren, Dna } from 'lucide-react';
+// 1. Import the hook
+import { useARIAEnv } from '../hooks/useARIAEnv';
 
 const taskTiers = [
   { id: 'easy', name: 'Single-Doc GDPR', icon: Zap, desc: 'Direct pattern matching on a single document.', frameworks: 'GDPR', steps: 15 },
@@ -18,8 +20,23 @@ interface TaskExplorerProps {
 
 export default function TaskExplorer({ show, onClose, onLaunch, selectedTask, setSelectedTask }: TaskExplorerProps) {
   const [seed, setSeed] = useState<number>(42);
+  
+  // 2. Destructure the startDemo function and loading state
+  const { startDemo, isLoading } = useARIAEnv();
 
   if (!show) return null;
+
+  // 3. New handler to trigger the server-side audit
+  const handleLaunchClick = async () => {
+    // This tells the FastAPI server to run the agent in the background
+    await startDemo(selectedTask); 
+    
+    // Optional: Call the original onLaunch if it handles other UI resets
+    onLaunch(); 
+    
+    // Close the modal
+    onClose();
+  };
 
   return (
     <div className="absolute inset-0 z-50 flex items-center justify-center p-8 bg-aria-bg/60 backdrop-blur-sm animate-in fade-in duration-300">
@@ -62,7 +79,6 @@ export default function TaskExplorer({ show, onClose, onLaunch, selectedTask, se
                   </div>
                 </div>
 
-                {/* Procedural Seed Input Generator Form */}
                 {isSelected && tier.id === 'procedural' && (
                   <div className="p-4 bg-aria-accentLight/30 border border-aria-accent/20 rounded-xl flex items-center justify-between animate-in slide-in-from-top-2">
                     <div className="flex items-center gap-2 text-aria-textMain font-semibold text-sm">
@@ -84,8 +100,21 @@ export default function TaskExplorer({ show, onClose, onLaunch, selectedTask, se
         
         <div className="p-6 border-t border-aria-border flex justify-end gap-4 bg-white">
           <button onClick={onClose} className="px-5 py-2.5 rounded-lg font-semibold text-aria-textMuted hover:bg-gray-100 transition">Cancel</button>
-          <button onClick={() => { onClose(); onLaunch(); }} className="px-6 py-2.5 rounded-lg font-semibold bg-aria-textMain text-white hover:bg-aria-accent transition shadow-md flex items-center gap-2">
-            <Play className="w-4 h-4" /> Load Scenario {selectedTask === 'procedural' ? `[Seed: ${seed}]` : ''}
+          
+          {/* 4. Update the Load Button to call handleLaunchClick and show loading state */}
+          <button 
+            disabled={isLoading}
+            onClick={handleLaunchClick} 
+            className={`px-6 py-2.5 rounded-lg font-semibold text-white transition shadow-md flex items-center gap-2 ${isLoading ? 'bg-gray-400 cursor-not-allowed' : 'bg-aria-textMain hover:bg-aria-accent'}`}
+          >
+            {isLoading ? (
+              <>Initializing Agent...</>
+            ) : (
+              <>
+                <Play className="w-4 h-4" /> 
+                Load Scenario {selectedTask === 'procedural' ? `[Seed: ${seed}]` : ''}
+              </>
+            )}
           </button>
         </div>
       </div>
