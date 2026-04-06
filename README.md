@@ -217,7 +217,7 @@ The script emits structured stdout in the mandatory `[START]` / `[STEP]` / `[END
 
 ```bash
 # Clone and install
-git clone https://huggingface.co/spaces/muskankhushi/aria
+git clone https://huggingface.co/spaces/muskankhushi/aria-compliance-v1
 cd aria
 pip install -r requirements.txt
 
