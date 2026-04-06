@@ -20,7 +20,7 @@ dependencies = [
 
 # --- ADD THIS SECTION ---
 [tool.hatch.build.targets.wheel]
-packages = ["aria", "server"]
+packages = ["aria", "server", "baseline"]
 
 [project.scripts]
 server = "server.app:main"

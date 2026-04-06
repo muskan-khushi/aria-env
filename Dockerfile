@@ -38,6 +38,7 @@ COPY --chown=user server/ ./server/
 COPY --chown=user tasks/ ./tasks/
 COPY --chown=user inference.py .
 COPY --chown=user openenv.yaml .
+COPY --chown=user baseline/ ./baseline/
 
 # Copy built frontend to the static directory used by FastAPI
 COPY --from=frontend-builder --chown=user /app/frontend/dist ./static/
