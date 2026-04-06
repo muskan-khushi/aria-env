@@ -28,7 +28,7 @@ export function useARIAEnv() {
       console.log("🚀 Internal Agent Loop Started:", data);
       
       // We set the session ID so the WebSocket hook knows which channel to listen to
-      setSessionId(data.session_id || "ui_demo_session");
+      setSessionId(data.session_id || "hackathon_demo_001");
       return data;
     } catch (err: any) {
       console.error("Failed to start internal demo:", err);
