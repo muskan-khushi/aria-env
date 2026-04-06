@@ -4,6 +4,8 @@
 [![OpenEnv](https://img.shields.io/badge/OpenEnv-Compliant-2563EB)](https://github.com/huggingface/openenv)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/Python-3.11+-blue.svg)](https://python.org)
+[![React 18](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=black)](https://reactjs.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
 [![Model: Llama 3 Ready](https://img.shields.io/badge/Model-Llama_3_Ready-0466c8.svg)](#)
 
 > **The first reinforcement learning environment for training and benchmarking AI agents on multi-framework regulatory compliance auditing.**
@@ -17,6 +19,15 @@ ARIA is a **training environment for AI agents**. Think of it like a gym for AI 
 **The real-world problem:** Companies must comply with regulations like GDPR (EU data privacy), HIPAA (US healthcare), CCPA (California), and SOC 2 (security). Checking whether a company's legal documents actually comply with these regulations costs **$800–$1,500/hour** for senior lawyers and takes weeks. 80% of that work is repetitive pattern-matching — exactly what AI is good at.
 
 **What ARIA does:** It gives an AI agent a set of company policy documents (privacy policies, vendor agreements, security specs) and asks it to find every compliance violation, provide evidence, and suggest fixes — just like a real compliance auditor would.
+
+---
+
+## Latest Enhancements (v1.1)
+
+- **Premium Dark-Mode Glassmorphic Dashboard**: A fully modernized React-based UI featuring stunning visual aesthetics, comprehensive real-time live charting, and dedicated views for tasks and task exploration.
+- **Dynamic Multi-User Support**: Redesigned session management and WebSockets to smoothly handle multi-user scenarios concurrently without explicit hardcoded sessions. 
+- **Decoupled Architecture (`useARIAEnv`)**: The frontend logic is encapsulated cleanly within custom hooks, offering a clean, strict separation between view rendering and the underlying API/state.
+- **Split Router Backend Structure**: The underlying FastAPI has been refactored, rigorously separating OpenEnv-compliant routing (`routes_openenv.py`) and ARIA-specific dashboard APIs (`routes_aria.py`).
 
 ---
 
@@ -92,23 +103,23 @@ This is called a **step/reset loop** and is the standard interface for RL enviro
 ### The Three-Layer Architecture
 
 ```
-┌─────────────────────────────────────────────┐
-│  React Frontend  (Dashboard UI)             │
-│  Live Recharts reward curve, findings       │
-│  panel, auto-scrolling reasoning log        │
-└──────────────────┬──────────────────────────┘
-                   │ REST + WebSockets
-┌──────────────────▼──────────────────────────┐
-│  FastAPI Backend  (The API Layer)           │
-│  POST /reset  POST /step  GET /state        │
-│  GET /tasks   POST /grader  POST /baseline  │
-└──────────────────┬──────────────────────────┘
-                   │ Python function calls
-┌──────────────────▼──────────────────────────┐
-│  Python RL Environment  (The Physics Engine)│
-│  ARIAEnv  RewardEngine  Grader              │
-│  Curriculum Agent  Framework Registry       │
-└─────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────┐
+│  React Frontend  (Glassmorphic Dashboard UI)     │
+│  useARIAEnv Hook • Live Recharts • Findings      │
+│  TaskExplorer • Dynamic Action Logging           │
+└──────────────────┬───────────────────────────────┘
+                   │ REST + WebSockets (`api/websocket.py`)
+┌──────────────────▼───────────────────────────────┐
+│  FastAPI Backend  (Split Routers)                │
+│  routes_openenv  POST /reset POST /step          │
+│  routes_aria     GET /leaderboard                │
+└──────────────────┬───────────────────────────────┘
+                   │ Python Environment API
+┌──────────────────▼───────────────────────────────┐
+│  Python RL Environment  (The Physics Engine)     │
+│  ARIAEnv  RewardEngine  Grader                   │
+│  Curriculum Agent  Framework Registry            │
+└──────────────────────────────────────────────────┘
 ```
 
 -----
