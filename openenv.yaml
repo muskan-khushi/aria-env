@@ -2,8 +2,9 @@ name: "aria-compliance-v1"  # Matches your JSON
 version: "1.0.0"
 entry_point: "aria.environment:ARIAEnv"
 description: >
-  A high-fidelity RL environment for multi-framework compliance auditing.
-  Features evidence-chain validation and live incident simulation.
+  A high-fidelity RL environment for multi-framework compliance auditing. 
+  Features evidence-chain validation, cross-framework conflict detection, 
+  and live incident response simulation.
 author: "Muskan"
 license: "MIT"
 tags:
