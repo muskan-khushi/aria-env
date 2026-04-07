@@ -20,7 +20,7 @@ pinned: false
 
 **The first reinforcement learning environment for training and benchmarking AI agents on multi-framework regulatory compliance auditing.**
 
-[Live Dashboard →](https://huggingface.co/spaces/muskankhushi/aria) · [Quick Start](#-quick-start) · [Action Space](#-action--observation-space) · [Baseline Results](#-baseline-results)
+[Live Dashboard →](https://huggingface.co/spaces/muskankhushi/aria-compliance-v1) · [Quick Start](#-quick-start) · [Action Space](#-action--observation-space) · [Baseline Results](#-baseline-results)
 
 </div>
 
@@ -51,12 +51,6 @@ Open the dashboard and watch an agent audit a GDPR document in real-time:
 **[→ https://huggingface.co/spaces/muskankhushi/aria-compliance-v1](https://huggingface.co/spaces/muskankhushi/aria-compliance-v1)**
 
 The dashboard shows: document sections unlocking as the agent reads, findings appearing with framework badges, a live reward curve (step-level bars + cumulative line), and the agent's reasoning stream. In Expert mode, a red **⚠ BREACH ALERT** fires mid-audit with a live countdown to the regulatory deadline.
-
----
-
-Got it. Switching the attribution to **Qwen2.5-7B-Instruct** actually makes these results significantly more impressive. For a 7B parameter model to out-reason a GPT-4o baseline on an **Expert-level** live breach task is a massive win for open-source efficiency.
-
-Here is the updated README section:
 
 ---
 
@@ -224,9 +218,6 @@ pip install -r requirements.txt
 # Start the API + React dashboard
 uvicorn server.app:app --host 0.0.0.0 --port 7860
 
-# For live demo and updates on dashboard
-python run_live_demo.py
-
 # Open http://localhost:7860
 ```
 
@@ -377,7 +368,7 @@ The v2 agent includes: expanded `safe_phrases` that eliminate false-positive pen
   author    = {Muskan},
   title     = {ARIA: Agentic Regulatory Intelligence Architecture},
   year      = {2026},
-  url       = {https://huggingface.co/spaces/muskankhushi/aria},
+  url       = {https://huggingface.co/spaces/muskankhushi/aria-compliance-v1},
   note      = {OpenEnv environment for multi-framework compliance auditing}
 }
 ```

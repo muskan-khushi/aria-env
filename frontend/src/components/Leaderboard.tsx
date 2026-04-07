@@ -131,29 +131,45 @@ export default function Leaderboard() {
       .then(res => res.json())
       .then(result => {
         if (result?.results?.length > 0) {
-          const agents: Record<string, any> = {};
-          const modelName = result.model || "Local Model";
+          const fetchedAgents: Record<string, any> = {};
           result.results.forEach((r: any) => {
-            if (!agents[r.agent]) {
-              agents[r.agent] = { agent: `${modelName} (${r.agent})`, easy: 0, medium: 0, hard: 0, expert: 0, status: "baseline", precisions: [], recalls: [] };
+            const agentKey = r.agent || "Local Model";
+            if (!fetchedAgents[agentKey]) {
+              fetchedAgents[agentKey] = { agent: agentKey, easy: 0, medium: 0, hard: 0, expert: 0, status: "local run", precisions: [], recalls: [] };
             }
-            agents[r.agent][r.task] = r.score;
-            agents[r.agent].precisions.push(r.precision || 0);
-            agents[r.agent].recalls.push(r.recall || 0);
+            fetchedAgents[agentKey][r.task] = r.score || 0;
+            fetchedAgents[agentKey].precisions.push(r.precision || 0);
+            fetchedAgents[agentKey].recalls.push(r.recall || 0);
           });
-          const formatted = Object.values(agents).map((a: any) => ({
+          
+          const formatted = Object.values(fetchedAgents).map((a: any) => ({
             ...a,
             avg: (a.easy + a.medium + a.hard + a.expert) / 4,
-            precision: a.precisions.reduce((s: number, v: number) => s + v, 0) / Math.max(1, a.precisions.length),
-            recall: a.recalls.reduce((s: number, v: number) => s + v, 0) / Math.max(1, a.recalls.length),
+            precision: a.precisions.length > 0 ? a.precisions.reduce((s: number, v: number) => s + v, 0) / a.precisions.length : 0,
+            recall: a.recalls.length > 0 ? a.recalls.reduce((s: number, v: number) => s + v, 0) / a.recalls.length : 0,
           }));
-          formatted.sort((a, b) => b.avg - a.avg);
-          formatted.forEach((a, idx) => { a.rank = idx + 1; });
-          setData(formatted);
-          setSelectedAgent(formatted[0]);
+          
+          const combined = [...fallbackLeaderboard];
+          
+          formatted.forEach(item => {
+            const existingIdx = combined.findIndex(c => c.agent === item.agent);
+            if (existingIdx !== -1) {
+              combined[existingIdx] = item;
+            } else {
+              combined.push(item);
+            }
+          });
+          
+          combined.sort((a, b) => b.avg - a.avg);
+          combined.forEach((a, idx) => { a.rank = idx + 1; });
+          
+          setData(combined);
+          setSelectedAgent(combined[0]);
         }
       })
-      .catch(() => {});
+      .catch((err) => {
+        console.error("Failed to load leaderboard data: ", err);
+      });
   }, []);
 
   const best = data[0];

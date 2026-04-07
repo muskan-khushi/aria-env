@@ -88,10 +88,45 @@ async def frameworks():
 
 @router.get("/leaderboard")
 async def get_leaderboard():
+    all_results = []
+    seen = set()
+
+    def _process_file(filepath: Path):
+        try:
+            with open(filepath) as f:
+                data = json.load(f)
+                
+            model_name = data.get("model", "Local Model")
+            fallback_agent = data.get("agent", "Unknown Agent")
+            
+            for r in data.get("results", []):
+                agent_name = r.get("agent", fallback_agent)
+                # Ensure unique identifier for each variant
+                display_agent = f"{model_name} ({agent_name})"
+                
+                # Clone to avoid mutations
+                r_copy = dict(r)
+                r_copy["agent"] = display_agent
+                
+                # Simple dedup strategy if same run exists
+                sig = f"{r_copy['task']}::{display_agent}"
+                if sig not in seen:
+                    seen.add(sig)
+                    all_results.append(r_copy)
+        except Exception as e:
+            print(f"Error reading {filepath}: {e}")
+
+    # Read the main baseline file
     if BASELINE_CACHE.exists():
-        with open(BASELINE_CACHE) as f:
-            return json.load(f)
-    return {"results": []}
+        _process_file(BASELINE_CACHE)
+        
+    # Read any extra files in baseline/results/ if it exists
+    results_dir = BASELINE_CACHE.parent / "results"
+    if results_dir.exists():
+        for p in results_dir.glob("*.json"):
+            _process_file(p)
+            
+    return {"results": all_results}
 
 @router.websocket("/ws/{session_id}")
 async def websocket_endpoint(websocket: WebSocket, session_id: str):
