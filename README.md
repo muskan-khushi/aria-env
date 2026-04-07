@@ -49,6 +49,8 @@ LLM chatbots and RAG pipelines fail at the actual audit workflow. They cannot:
 Open the dashboard and watch an agent audit a GDPR document in real-time:
 
 **[→ https://huggingface.co/spaces/muskankhushi/aria-compliance-v1](https://huggingface.co/spaces/muskankhushi/aria-compliance-v1)**
+> [!IMPORTANT]
+> Visit the Space URL first to wake it up before running the evaluator.
 
 The dashboard shows: document sections unlocking as the agent reads, findings appearing with framework badges, a live reward curve (step-level bars + cumulative line), and the agent's reasoning stream. In Expert mode, a red **⚠ BREACH ALERT** fires mid-audit with a live countdown to the regulatory deadline.
 
@@ -76,9 +78,8 @@ The results from the **April 6, 2026** run demonstrate that Qwen2.5-7B is a "Hea
 * **The "Small Model" Precision Gap:** While the model excels at the most complex reasoning (Expert), it shows a significant drop-off on the **Easy** task (**0.63 vs 0.94**). This implies that while the 7B model can "reason," it struggles with the exhaustive "keyword-perfect" retrieval and pattern matching that larger models like GPT-4o perform naturally.
 * **High Efficiency ROI:** Despite being significantly smaller than the models it was benchmarked against, Qwen2.5-7B maintains an average score of **0.47**. For ARIA, this proves that an agentic framework (`MultiPassAgent`) can bridge the "intelligence gap," allowing a 7B model to perform auditing tasks that usually require frontier-scale compute.
 
-> [!TIP]
-> To improve the "Easy" tier score, we recommend adding a dedicated **"Regex/Lexical Pass"** to the `MultiPassAgent` specifically for Qwen, ensuring it doesn't overlook explicit GDPR terms in simpler document sets.
-
+>![The ARIA Edge]
+> "While GPT-4o is the industry standard, our MultiPassAgent allows Qwen2.5-7B to achieve a 0.35 on the Expert task, surpassing the GPT-4o baseline of 0.33. This proves that agentic architectures can commoditize high-stakes regulatory auditing."
 ---
 
 

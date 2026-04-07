@@ -43,6 +43,8 @@ export function useARIAEnv() {
     async (taskName: string = "easy", seed: number = 42) => {
       setIsLoading(true);
       setError(null);
+      setInitialObs(null); 
+      setSessionId(null);
       try {
         const response = await fetch(`${API_BASE}/reset`, {
           method: "POST",

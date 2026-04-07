@@ -36,8 +36,6 @@ async def reset(
     if req is None:
         req = ResetRequest()
     try:
-        # FIX: Pass x_session_id (from the header) into the session_manager
-        # This forces the manager to use 'hackathon_demo_001' instead of a random ID
         sid, env = session_manager.create(
             task_name=req.task_name, 
             seed=req.seed, 

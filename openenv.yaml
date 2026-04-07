@@ -1,5 +1,6 @@
 name: "aria-compliance-v1"  
 version: "1.0.0"
+url: "https://huggingface.co/spaces/muskankhushi/aria-compliance-v1"
 entry_point: "aria.environment:ARIAEnv"
 description: >
   A high-fidelity RL environment for multi-framework compliance auditing. 
@@ -45,6 +46,7 @@ endpoints:
   state: "/state"
   tasks: "/tasks"
   grader: "/grader"
+  close: "/health"
 
 baseline:
   model: "Qwen/Qwen2.5-7B-Instruct"
