@@ -47,7 +47,7 @@ endpoints:
   grader: "/grader"
 
 baseline:
-  model: "meta-llama/Llama-3.3-70B-Instruct"
+  model: "Qwen/Qwen2.5-7B-Instruct"
   reproducible: true
   seed: 42
   expected_scores:

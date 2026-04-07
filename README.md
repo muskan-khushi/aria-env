@@ -205,7 +205,7 @@ The terminal grader computes a final score in `[0.0, 1.0]` as a weighted sum of 
 
 ```bash
 export HF_TOKEN="your_token_here"
-export MODEL_NAME="meta-llama/Llama-3.3-70B-Instruct"   # or Llama-3.1-8B for cost
+export MODEL_NAME="Qwen/Qwen2.5-7B-Instruct"   
 export API_BASE_URL="https://router.huggingface.co/v1"
 
 python inference.py
