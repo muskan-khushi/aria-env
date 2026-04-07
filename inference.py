@@ -23,7 +23,7 @@ MODEL_NAME   = os.getenv("MODEL_NAME",   "Qwen/Qwen2.5-7B-Instruct")
 BENCHMARK    = "aria-compliance-v1"
 
 TASKS        = ["easy", "medium", "hard", "expert"]
-MAX_STEPS    = 50        
+MAX_STEPS    = 60  
 TEMPERATURE  = 0.0
 MAX_TOKENS   = 600
 
