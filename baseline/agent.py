@@ -48,7 +48,7 @@ from aria.models import (
 )
 
 # ── Config ─────────────────────────────────────────────────────────────────────
-MODEL_NAME   = os.environ.get("MODEL_NAME", "Qwen/Qwen2.5-72B-Instruct")
+MODEL_NAME   = os.environ.get("MODEL_NAME", "llama-3.1-8b-instant")
 _MAX_TOKENS  = 600
 _TEMPERATURE = 0.0
 

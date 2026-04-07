@@ -21,9 +21,9 @@ def run_live_demo(task_name="easy"):
     print(f"🚀 Initializing Live Demo for task: {task_name.upper()}")
     
     # 1. Initialize Agent (Provider Agnostic for Groq/OpenAI)
-    api_key = os.environ.get("HF_TOKEN") or os.environ.get("GROQ_API_KEY") or os.environ.get("OPENAI_API_KEY")
+    api_key = os.environ.get("GROQ_API_KEY") or os.environ.get("HF_TOKEN") or os.environ.get("OPENAI_API_KEY")
     base_url = os.environ.get("API_BASE_URL")
-    model_name = os.environ.get("MODEL_NAME", "gpt-4o-mini")
+    model_name = os.environ.get("MODEL_NAME", "llama-3.1-8b-instant")
     
     if not api_key:
         print("⚠️ No API Key found. Agent will run in fallback heuristic mode.")

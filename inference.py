@@ -16,10 +16,10 @@ from typing import Optional, List
 from openai import OpenAI
 
 # ── Environment / model config (matches hackathon mandatory variables) ──────────
-API_KEY      = os.getenv("HF_TOKEN") or os.getenv("API_KEY", "")
-API_BASE_URL = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1")
+API_KEY      = os.getenv("GROQ_API_KEY") or os.getenv("HF_TOKEN") or os.getenv("API_KEY", "")
+API_BASE_URL = os.getenv("API_BASE_URL", "https://api.groq.com/openai/v1")
 ENV_URL = os.getenv("ENV_URL", "http://localhost:7860")
-MODEL_NAME   = os.getenv("MODEL_NAME",   "Qwen/Qwen2.5-7B-Instruct")
+MODEL_NAME   = os.getenv("MODEL_NAME",   "llama-3.1-8b-instant")
 BENCHMARK    = "aria-compliance-v1"
 
 TASKS        = ["easy", "medium", "hard", "expert"]

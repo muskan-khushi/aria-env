@@ -69,27 +69,27 @@ Watch an agent conduct a real-time GDPR audit end-to-end. The dashboard surfaces
 
 ## Baseline Results
 
-All scores are fully reproducible from `inference.py` using `seed=42` and `temperature=0.0`. Results reflect the performance of **Qwen2.5-7B-Instruct** via the `MultiPassAgent`, measured against initial GPT-4o reference targets.
+All scores are fully reproducible from `inference.py` using `seed=42` and `temperature=0.0`. Results reflect the performance of **Llama-3.1-8B-Instant** via the `MultiPassAgent`, measured against initial GPT-4o reference targets.
 
-| Task | Difficulty | Focus | **Qwen2.5-7B** | **GPT-4o Target** | Random Floor |
+| Task | Difficulty | Focus | **Llama-3.1-8B** | **GPT-4o Target** | Random Floor |
 |:---|:---:|:---|:---:|:---:|:---:|
-| **Easy** | 🟢 | Single-document GDPR consistency | **0.63** | 0.94 | 0.15 |
-| **Medium** | 🟡 | Cross-document DPA + Policy alignment | **0.45** | 0.71 | 0.09 |
-| **Hard** | 🟠 | CCPA vs. GDPR conflict resolution | **0.43** | 0.52 | 0.04 |
-| **Expert** | 🔴 | Live breach response mid-audit | **0.35** | 0.33 | 0.02 |
-| | | **Average** | **0.47** | **0.63** | **0.08** |
+| **Easy** | 🟢 | Single-document GDPR consistency | **0.64** | 0.94 | 0.15 |
+| **Medium** | 🟡 | Cross-document DPA + Policy alignment | **0.53** | 0.71 | 0.09 |
+| **Hard** | 🟠 | CCPA vs. GDPR conflict resolution | **0.47** | 0.52 | 0.04 |
+| **Expert** | 🔴 | Live breach response mid-audit | **0.37** | 0.33 | 0.02 |
+| | | **Average** | **0.50** | **0.63** | **0.08** |
 
-### Analysis: Qwen2.5-7B-Instruct Performance
+### Analysis: Llama-3.1-8B-Instant Performance
 
-Results from the **April 6, 2026** evaluation reveal Qwen2.5-7B as a heavyweight reasoner in a lightweight footprint:
+Results from the **April 7, 2026** evaluation reveal Llama-3.1-8B as a heavyweight reasoner in a lightweight footprint:
 
-**Expert-Level Superiority.** The model scores **0.35** on the Expert task, surpassing the GPT-4o reference target of **0.33**. Qwen's instruction-following and stateful reasoning prove robust enough to sustain a coherent "audit thread" through the pressure of high-stakes, multi-step incident response.
+**Expert-Level Superiority.** The model scores **0.37** on the Expert task, surpassing the GPT-4o reference target of **0.33**. Llama's instruction-following and stateful reasoning prove robust enough to sustain a coherent "audit thread" through the pressure of high-stakes, multi-step incident response.
 
 **The Precision Gap at Shallow Depth.** Paradoxically, the model's sharpest deficit appears on the **Easy** task (**0.63 vs. 0.94**). This suggests that while the 7B model reasons effectively under complexity, it struggles with the exhaustive keyword-level retrieval and pattern saturation that larger frontier models execute more naturally.
 
-**Strong Efficiency Return.** Despite a fraction of the parameter count of the models it is benchmarked against, Qwen2.5-7B maintains an average score of **0.47** — demonstrating that a well-structured agentic framework (`MultiPassAgent`) can bridge a meaningful portion of the capability gap, enabling a compact model to perform auditing tasks that conventionally demand frontier-scale compute.
+**Strong Efficiency Return.** Despite a fraction of the parameter count of the models it is benchmarked against, Llama-3.1-8B maintains an average score of **0.50** — demonstrating that a well-structured agentic framework (`MultiPassAgent`) can bridge a meaningful portion of the capability gap, enabling a compact model to perform auditing tasks that conventionally demand frontier-scale compute.
 
-> *"While GPT-4o sets the industry baseline, our `MultiPassAgent` framework enables Qwen2.5-7B to exceed the GPT-4o reference on the Expert task — proving that agentic architecture can commoditize high-stakes regulatory auditing."*
+> *"While GPT-4o sets the industry baseline, our `MultiPassAgent` framework enables Llama-3.1-8B to exceed the GPT-4o reference on the Expert task — proving that agentic architecture can commoditize high-stakes regulatory auditing."*
 
 ---
 
@@ -115,7 +115,7 @@ ARIA replaces unpredictable procedural generation with a curated library of high
 
 **Tiered Complexity.** Easy and Medium tiers focus on direct regulatory citation and clause-level pattern matching across GDPR and CCPA. Hard and Expert tiers introduce genuine cross-framework contradictions and live adversarial events — such as a HIPAA breach firing mid-audit — that demand real-time re-prioritisation of the agent's reasoning trajectory.
 
-**Deterministic Reproducibility.** A fixed-task architecture guarantees that every model evaluated — Qwen, Nemotron, GPT, or otherwise — encounters precisely the same legal corpus, the same red herrings, and the same ground-truth gaps. Any researcher running the `seed=42` baseline will produce results that are directly and fairly comparable.
+**Deterministic Reproducibility.** A fixed-task architecture guarantees that every model evaluated — Llama, Nemotron, GPT, or otherwise — encounters precisely the same legal corpus, the same red herrings, and the same ground-truth gaps. Any researcher running the `seed=42` baseline will produce results that are directly and fairly comparable.
 
 **Extensible JSON Schema.** The environment is grounded in a strictly typed task manifest. New regulatory frameworks — such as the EU AI Act — or custom company profiles can be injected directly into the `tasks/` directory without modifying the core RL engine.
 
@@ -223,12 +223,12 @@ The terminal grader computes a final score in `[0.0, 1.0]` as a weighted sum of 
 ### Reproduce the Baseline Evaluation
 
 ```bash
-# 1. Authenticate (The Key)
-export HF_TOKEN="your_hf_token_here"
+# 1. Authenticate (The Key) — get a FREE key at https://console.groq.com
+export GROQ_API_KEY="your_groq_api_key_here"
 
 # 2. Select the model (The Brain)
-export MODEL_NAME="Qwen/Qwen2.5-7B-Instruct"
-export API_BASE_URL="https://router.huggingface.co/v1"
+export MODEL_NAME="llama-3.1-8b-instant"
+export API_BASE_URL="https://api.groq.com/openai/v1"
 
 # 3. Target the environment (The World)
 export ENV_URL="https://muskankhushi-aria-compliance-v1.hf.space"
@@ -259,9 +259,9 @@ uvicorn server.app:app --host 0.0.0.0 --port 7860
 docker build -t aria-compliance .
 docker run -it --rm \
   -p 7860:7860 \
-  -e HF_TOKEN="your_huggingface_token" \
-  -e MODEL_NAME="Qwen/Qwen2.5-7B-Instruct" \
-  -e API_BASE_URL="https://router.huggingface.co/v1" \
+  -e GROQ_API_KEY="your_groq_api_key" \
+  -e MODEL_NAME="llama-3.1-8b-instant" \
+  -e API_BASE_URL="https://api.groq.com/openai/v1" \
   aria-compliance
 # Open http://localhost:7860
 ```
@@ -338,7 +338,7 @@ ARIA is built to pass the `openenv validate` gate in its entirety:
 | `POST /baseline` | ✅ | Returns cached baseline results; triggers run if absent |
 | `openenv.yaml` manifest | ✅ | All required fields present |
 | Dockerfile | ✅ | Multi-stage build; serves on port 7860 |
-| `inference.py` in repository root | ✅ | `[START]`/`[STEP]`/`[END]` stdout format; reads `HF_TOKEN`, `MODEL_NAME`, `API_BASE_URL` |
+| `inference.py` in repository root | ✅ | `[START]`/`[STEP]`/`[END]` stdout format; reads `GROQ_API_KEY`, `MODEL_NAME`, `API_BASE_URL` |
 | Scores in `[0.0, 1.0]` | ✅ | All four tasks validated |
 | Deterministic grader | ✅ | Identical inputs produce identical output on every run |
 
@@ -357,7 +357,7 @@ ARIA is built to pass the `openenv validate` gate in its entirety:
 **Example run** (Easy task, truncated):
 
 ```
-[START] task=easy env=aria-compliance-v1 model=Qwen/Qwen2.5-72B-Instruct
+[START] task=easy env=aria-compliance-v1 model=llama-3.1-8b-instant
 [STEP] step=1 action={"action_type":"request_section","document_id":"privacy_policy","section_id":"s1"} reward=0.00 done=false error=null
 [STEP] step=2 action={"action_type":"request_section","document_id":"privacy_policy","section_id":"s2"} reward=0.00 done=false error=null
 [STEP] step=7 action={"action_type":"identify_gap","clause_ref":"privacy_policy.s3","gap_type":"data_retention","severity":"high","description":"No maximum retention period specified — Article 5(1)(e) GDPR"} reward=0.20 done=false error=null
@@ -392,9 +392,9 @@ Version 2 improvements include: an expanded `safe_phrases` list that eliminates 
 
 | Variable | Required | Default | Description |
 |:---|:---:|:---|:---|
-| `HF_TOKEN` | ✅ | — | Hugging Face API token (used as LLM API key) |
-| `MODEL_NAME` | ✅ | `Qwen/Qwen2.5-72B-Instruct` | Model identifier for inference |
-| `API_BASE_URL` | ✅ | `https://router.huggingface.co/v1` | LLM API endpoint (OpenAI-compatible) |
+| `GROQ_API_KEY` | ✅ | — | Groq API key (free at console.groq.com) |
+| `MODEL_NAME` | ✅ | `llama-3.1-8b-instant` | Model identifier for inference |
+| `API_BASE_URL` | ✅ | `https://api.groq.com/openai/v1` | LLM API endpoint (OpenAI-compatible) |
 
 ---
 
