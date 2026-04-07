@@ -107,14 +107,17 @@ Identifying a gap earns **zero reward** until the agent invokes `cite_evidence`.
 
 The corpus includes **Compliant Decoys** — clauses that employ violation-adjacent vocabulary but are, upon careful reading, fully lawful. For example: a clause referencing `"data sharing"` followed by `"only for strictly necessary billing purposes (a GDPR exception)"` must **not** be flagged. Agents that maximise recall by flagging indiscriminately receive catastrophic score penalties (see [Anti-Gaming Mechanics](#anti-gaming-mechanics)).
 
-### 4. Multi-Framework Scenario Library
-ARIA includes a curated library of high-fidelity compliance scenarios across four difficulty tiers. Every task is designed to test specific agentic capabilities—from basic pattern matching in GDPR to complex, time-sensitive incident response in HIPAA.
+### 4 · Multi-Tiered Evaluation Suite
 
-Validated Ground Truth: Unlike purely random environments, ARIA’s tasks are hand-verified for "Ground Truth" accuracy. This ensures that the 0.47 baseline is a mathematically sound reflection of the agent's reasoning, not an artifact of a noisy generator.
+ARIA replaces unpredictable procedural generation with a curated library of high-fidelity compliance scenarios, each precision-engineered to stress-test a distinct dimension of agentic legal reasoning.
 
-Extensible JSON Schema: The environment uses a strictly typed JSON manifest system, allowing researchers to inject custom company profiles or new regulatory frameworks (like the EU AI Act) without modifying the core RL engine.
+**Verified Ground Truth.** Every scenario — Easy through Expert — ships with a hand-verified gold-standard gap list. This ensures the 0.47 baseline score reflects a mathematically precise measure of reasoning quality, not an artefact of generative noise.
 
-Deterministic Seeds: By using fixed task IDs (easy, medium, hard, expert), we ensure 100% reproducibility. Any researcher running the seed=42 baseline will encounter the exact same legal gaps and adversarial red herrings.
+**Tiered Complexity.** Easy and Medium tiers focus on direct regulatory citation and clause-level pattern matching across GDPR and CCPA. Hard and Expert tiers introduce genuine cross-framework contradictions and live adversarial events — such as a HIPAA breach firing mid-audit — that demand real-time re-prioritisation of the agent's reasoning trajectory.
+
+**Deterministic Reproducibility.** A fixed-task architecture guarantees that every model evaluated — Qwen, Nemotron, GPT, or otherwise — encounters precisely the same legal corpus, the same red herrings, and the same ground-truth gaps. Any researcher running the `seed=42` baseline will produce results that are directly and fairly comparable.
+
+**Extensible JSON Schema.** The environment is grounded in a strictly typed task manifest. New regulatory frameworks — such as the EU AI Act — or custom company profiles can be injected directly into the `tasks/` directory without modifying the core RL engine.
 
 ### 5 · Expert Tier: Live Incident Simulation
 
