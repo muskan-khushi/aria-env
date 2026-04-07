@@ -1,4 +1,4 @@
-name: "aria-compliance-v1"  # Matches your JSON
+name: "aria-compliance-v1"  
 version: "1.0.0"
 entry_point: "aria.environment:ARIAEnv"
 description: >
