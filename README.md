@@ -48,7 +48,7 @@ LLM chatbots and RAG pipelines fail at the actual audit workflow. They cannot:
 
 Open the dashboard and watch an agent audit a GDPR document in real-time:
 
-[![Hugging Face Space](https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-Space-blue)](https://huggingface.co/spaces/muskankhushi/aria-compliance-v1)
+* **[(https://huggingface.co/spaces/muskankhushi/aria-compliance-v1)](https://huggingface.co/spaces/muskankhushi/aria-compliance-v1)
 > [!IMPORTANT]
 > Visit the Space URL first to wake it up before running the evaluator.
 
@@ -235,8 +235,13 @@ uvicorn server.app:app --host 0.0.0.0 --port 7860
 ### Docker
 
 ```bash
-docker build -t aria .
-docker run -e HF_TOKEN=$HF_TOKEN -p 7860:7860 aria
+docker build -t aria-compliance .
+docker run -it --rm \
+  -p 7860:7860 \
+  -e HF_TOKEN="your_huggingface_token" \
+  -e MODEL_NAME="Qwen/Qwen2.5-7B-Instruct" \
+  -e API_BASE_URL="https://router.huggingface.co/v1" \
+  aria-compliance
 # Open http://localhost:7860
 ```
 
