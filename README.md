@@ -73,7 +73,7 @@ All scores are fully reproducible from `inference.py` using `seed=42` and `tempe
 
 | Task | Difficulty | Focus | **Llama-3.1-8B** | **GPT-4o Target** | Random Floor |
 |:---|:---:|:---|:---:|:---:|:---:|
-| **Easy** | 🟢 | Single-document GDPR consistency | **0.64** | 0.94 | 0.15 |
+| **Easy** | 🟢 | Single-document GDPR consistency | **0.63** | 0.94 | 0.15 |
 | **Medium** | 🟡 | Cross-document DPA + Policy alignment | **0.53** | 0.71 | 0.09 |
 | **Hard** | 🟠 | CCPA vs. GDPR conflict resolution | **0.47** | 0.52 | 0.04 |
 | **Expert** | 🔴 | Live breach response mid-audit | **0.37** | 0.33 | 0.02 |
