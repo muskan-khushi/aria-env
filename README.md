@@ -13,7 +13,7 @@ pinned: false
 <div align="center">
 
 [![OpenEnv Compliant](https://img.shields.io/badge/OpenEnv-Compliant-2563EB?style=for-the-badge&logo=data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTYiIGhlaWdodD0iMTYiIHZpZXdCb3g9IjAgMCAxNiAxNiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTYiIGhlaWdodD0iMTYiIHJ4PSIzIiBmaWxsPSIjMjU2M0VCIi8+PC9zdmc+)](https://github.com/huggingface/openenv)
-[![Live Demo](https://img.shields.io/badge/🤗_HF_Space-Live_Demo-FF6B35?style=for-the-badge)](https://huggingface.co/spaces/muskankhushi/aria)
+[![Live Demo](https://img.shields.io/badge/🤗_HF_Space-Live_Demo-FF6B35?style=for-the-badge)](https://huggingface.co/spaces/muskankhushi/aria-compliance-v1)
 [![License: MIT](https://img.shields.io/badge/License-MIT-22C55E?style=for-the-badge)](LICENSE)
 [![Python 3.11](https://img.shields.io/badge/Python-3.11-3B82F6?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
 [![React 18](https://img.shields.io/badge/React-18-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://react.dev)
@@ -48,7 +48,7 @@ LLM chatbots and RAG pipelines fail at the actual audit workflow. They cannot:
 
 Open the dashboard and watch an agent audit a GDPR document in real-time:
 
-**[→ https://huggingface.co/spaces/muskankhushi/aria-compliance-v1](https://huggingface.co/spaces/muskankhushi/aria-compliance-v1)**
+[![Hugging Face Space](https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-Space-blue)](https://huggingface.co/spaces/muskankhushi/aria-compliance-v1)
 > [!IMPORTANT]
 > Visit the Space URL first to wake it up before running the evaluator.
 
@@ -199,10 +199,20 @@ The terminal grader computes a final score in `[0.0, 1.0]` as a weighted sum of 
 ### Run the Baseline (Reproduces All Scores)
 
 ```bash
-export HF_TOKEN="your_token_here"
-export MODEL_NAME="Qwen/Qwen2.5-7B-Instruct"   
+### 🛠️ Run the Baseline Evaluation
+
+# 1. Provide your Hugging Face Token (The "Key")
+export HF_TOKEN="your_hf_token_here"
+
+# 2. Select the Model (The "Brain")
+export MODEL_NAME="Qwen/Qwen2.5-7B-Instruct"
 export API_BASE_URL="https://router.huggingface.co/v1"
 
+# 3. Target the Environment (The "World")
+# To test the live Hugging Face Space:
+export ENV_URL="https://muskankhushi-aria-compliance-v1.hf.space"
+
+# 4. Execute
 python inference.py
 ```
 

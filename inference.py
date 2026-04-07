@@ -3,22 +3,6 @@ ARIA — Improved Baseline Inference Script
 ==========================================
 inference.py  (root of repo)
 
-Fixes over the previous version:
-  1. Correct env-var wiring: API_BASE_URL / MODEL_NAME / HF_TOKEN
-  2. Exact [START] / [STEP] / [END] stdout format required by evaluator
-  3. ImprovedMultiPassAgent:
-       a. Fixed _HEURISTIC_PATTERNS safe_phrases — eliminates ~0.20 pts of
-          false-positive penalties that tanked medium/hard/expert scores
-       b. Remediation templates updated to include *exact canonical keywords*
-          (["maximum period","retention limit","delete after"] etc.) so the
-          grader's ≥70% keyword-coverage check awards +0.15 instead of 0.01
-       c. _MAX_READ_SECTIONS raised to 12 and made task-aware so expert keeps
-          enough steps for incident response
-       d. Explicit flag_false_positive pass before finalisation — self-corrects
-          any low-confidence heuristic findings for +0.05 each
-       e. Escalate-conflicts step properly fires before submit_final_report
-  4. LLM prompt updated with scoring principles so the model targets +0.20
-     identify_gap rewards, not generic answers
 """
 
 from __future__ import annotations
@@ -34,11 +18,12 @@ from openai import OpenAI
 # ── Environment / model config (matches hackathon mandatory variables) ──────────
 API_KEY      = os.getenv("HF_TOKEN") or os.getenv("API_KEY", "")
 API_BASE_URL = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1")
-MODEL_NAME   = os.getenv("MODEL_NAME",   "Qwen/Qwen2.5-72B-Instruct")
+ENV_URL = os.getenv("ENV_URL", "http://localhost:7860")
+MODEL_NAME   = os.getenv("MODEL_NAME",   "Qwen/Qwen2.5-7B-Instruct")
 BENCHMARK    = "aria-compliance-v1"
 
 TASKS        = ["easy", "medium", "hard", "expert"]
-MAX_STEPS    = 50        # hard ceiling; env will done=True before this
+MAX_STEPS    = 50        
 TEMPERATURE  = 0.0
 MAX_TOKENS   = 600
 

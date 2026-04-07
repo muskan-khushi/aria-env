@@ -1,6 +1,6 @@
 name: "aria-compliance-v1"  
 version: "1.0.0"
-url: "https://huggingface.co/spaces/muskankhushi/aria-compliance-v1"
+url: "https://muskankhushi-aria-compliance-v1.hf.space"
 entry_point: "aria.environment:ARIAEnv"
 description: >
   A high-fidelity RL environment for multi-framework compliance auditing. 
