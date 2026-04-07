@@ -44,7 +44,7 @@ try:
 except ImportError:
     OPENAI_AVAILABLE = False
 
-RESULTS_FILE = Path(__file__).parent / "baseline_results.json"
+RESULTS_FILE = Path(__file__).parent.parent / "baseline_results.json"
 TASKS = ["easy", "medium", "hard", "expert"]
 SEED = 42
 
