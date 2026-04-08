@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sys
 import time
 from typing import Optional, List
@@ -16,16 +17,41 @@ from typing import Optional, List
 from openai import OpenAI
 
 # ── Environment / model config (matches hackathon mandatory variables) ──────────
-API_KEY      = os.getenv("GROQ_API_KEY") or os.getenv("HF_TOKEN") or os.getenv("API_KEY", "")
-API_BASE_URL = os.getenv("API_BASE_URL", "https://api.groq.com/openai/v1")
+API_KEY      = os.getenv("OPENROUTER_API_KEY") or os.getenv("GROQ_API_KEY") or os.getenv("HF_TOKEN") or os.getenv("API_KEY", "")
+API_BASE_URL = os.getenv("API_BASE_URL", "https://openrouter.ai/api/v1")
 ENV_URL = os.getenv("ENV_URL", "http://localhost:7860")
-MODEL_NAME   = os.getenv("MODEL_NAME",   "llama-3.1-8b-instant")
+MODEL_NAME   = os.getenv("MODEL_NAME",   "nvidia/nemotron-3-super-120b-a12b:free")
 BENCHMARK    = "aria-compliance-v1"
 
 TASKS        = ["easy", "medium", "hard", "expert"]
 MAX_STEPS    = 60  
 TEMPERATURE  = 0.0
-MAX_TOKENS   = 600
+MAX_TOKENS   = 800
+
+
+def _extract_json(text: str) -> dict:
+    """
+    Robustly extract JSON from LLM response text.
+    Handles: plain JSON, markdown code blocks, text with embedded JSON.
+    """
+    text = text.strip()
+    try:
+        return json.loads(text)
+    except (json.JSONDecodeError, TypeError):
+        pass
+    md_match = re.search(r'```(?:json)?\s*\n?(\{.*?\})\s*```', text, re.DOTALL)
+    if md_match:
+        try:
+            return json.loads(md_match.group(1))
+        except json.JSONDecodeError:
+            pass
+    brace_match = re.search(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', text, re.DOTALL)
+    if brace_match:
+        try:
+            return json.loads(brace_match.group(0))
+        except json.JSONDecodeError:
+            pass
+    raise ValueError(f"Cannot extract JSON from response: {text[:200]}")
 
 # ── Import ARIA environment ────────────────────────────────────────────────────
 try:
@@ -528,18 +554,30 @@ class ImprovedMultiPassAgent:
     def _llm_identify_gap(self, obs: ARIAObservation) -> ARIAAction:
         try:
             prompt   = build_user_prompt(obs)
-            response = self.client.chat.completions.create(
-                model=MODEL_NAME,
-                temperature=TEMPERATURE,
-                response_format={"type": "json_object"},
-                messages=[
-                    {"role": "system", "content": SYSTEM_PROMPT.split("CURRENT EPISODE STATUS")[0]},
-                    {"role": "user",   "content": prompt},
-                ],
-                max_tokens=MAX_TOKENS,
-            )
+            # Try JSON mode first, fall back to plain text
+            try:
+                response = self.client.chat.completions.create(
+                    model=MODEL_NAME,
+                    temperature=TEMPERATURE,
+                    response_format={"type": "json_object"},
+                    messages=[
+                        {"role": "system", "content": SYSTEM_PROMPT.split("CURRENT EPISODE STATUS")[0]},
+                        {"role": "user",   "content": prompt},
+                    ],
+                    max_tokens=MAX_TOKENS,
+                )
+            except Exception:
+                response = self.client.chat.completions.create(
+                    model=MODEL_NAME,
+                    temperature=TEMPERATURE,
+                    messages=[
+                        {"role": "system", "content": SYSTEM_PROMPT.split("CURRENT EPISODE STATUS")[0]},
+                        {"role": "user",   "content": prompt},
+                    ],
+                    max_tokens=MAX_TOKENS,
+                )
             raw  = response.choices[0].message.content
-            data = json.loads(raw)
+            data = _extract_json(raw)
             self._llm_fail_count = 0
             return ARIAAction(**data)
 
@@ -812,6 +850,12 @@ def run_episode(task_name: str, client: OpenAI) -> dict:
             break
 
     # Grade the episode — env.grade() may return object, dict, or float
+    f1_val = 0.0
+    precision = 0.0
+    recall = 0.0
+    evidence_score = 0.0
+    remediation_score = 0.0
+    breakdown = {}
     try:
         grade_result = env.grade()
         if isinstance(grade_result, (int, float)):
@@ -820,6 +864,14 @@ def run_episode(task_name: str, client: OpenAI) -> dict:
             score = float(grade_result.get("score", 0.0))
         elif hasattr(grade_result, "score"):
             score = float(grade_result.score)
+            # Extract F1 metrics if available
+            if hasattr(grade_result, "f1_score"):
+                f1_val = getattr(grade_result.f1_score, "f1", 0.0)
+                precision = getattr(grade_result.f1_score, "precision", 0.0)
+                recall = getattr(grade_result.f1_score, "recall", 0.0)
+            evidence_score = getattr(grade_result, "evidence_score", 0.0)
+            remediation_score = getattr(grade_result, "remediation_score", 0.0)
+            breakdown = getattr(grade_result, "breakdown", {})
         else:
             score = sum(r for r in rewards if r > 0)
     except Exception:
@@ -837,7 +889,16 @@ def run_episode(task_name: str, client: OpenAI) -> dict:
 
     return {
         "task":    task_name,
+        "agent":   "MultiPass",
         "score":   score,
+        "f1":      f1_val,
+        "precision": precision,
+        "recall":  recall,
+        "evidence_score": evidence_score,
+        "remediation_score": remediation_score,
+        "steps_taken": step_n,
+        "cumulative_reward": sum(rewards),
+        "breakdown": breakdown,
         "steps":   step_n,
         "success": success,
         "rewards": rewards,
@@ -857,18 +918,22 @@ def main() -> None:
     )
 
     results = []
+    run_start = time.time()
     for task in TASKS:
         print("─" * 52, flush=True)
         print(f"  ▶  Task: {task.upper()}", flush=True)
         print("─" * 52, flush=True)
+        task_start = time.time()
         result = run_episode(task, client)
         results.append(result)
         agent_type = "LLM+Heuristic" if API_KEY else "Heuristic-only"
-        print(f"  Curriculum: {agent_type}\n", flush=True)
+        task_elapsed = time.time() - task_start
+        print(f"  Curriculum: {agent_type} | Time: {task_elapsed:.1f}s\n", flush=True)
 
     # Summary
     avg   = sum(r["score"] for r in results) / len(results)
     total_pass = sum(1 for r in results if r["success"])
+    total_elapsed = time.time() - run_start
     print("=" * 52, flush=True)
     print("         ARIA BASELINE SUMMARY", flush=True)
     print("=" * 52, flush=True)
@@ -880,13 +945,27 @@ def main() -> None:
         )
     print(f"\n  🏆  Average : {avg:.2f}", flush=True)
     print(f"  📋  Passed  : {total_pass} / {len(results)}", flush=True)
+    print(f"  ⏱️  Total   : {total_elapsed:.1f}s ({total_elapsed/60:.1f} min)", flush=True)
 
-    # Persist results
+    # Persist results — same format as baseline/run_baseline.py
+    # Write to BOTH locations so the server and leaderboard can read them
     import json as _json
-    out_path = os.path.join(os.path.dirname(__file__), "baseline_results.json")
-    with open(out_path, "w") as f:
-        _json.dump(results, f, indent=2)
-    print(f"[DEBUG] Results saved → {out_path}", flush=True)
+    from pathlib import Path as _Path
+
+    wrapped = {"results": results, "model": MODEL_NAME, "seed": 42}
+
+    # 1. Root baseline_results.json
+    root_path = _Path(__file__).parent / "baseline_results.json"
+    with open(root_path, "w") as f:
+        _json.dump(wrapped, f, indent=2)
+    print(f"[OK] Results saved → {root_path}", flush=True)
+
+    # 2. baseline/baseline_results.json (server reads from here)
+    baseline_path = _Path(__file__).parent / "baseline" / "baseline_results.json"
+    baseline_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(baseline_path, "w") as f:
+        _json.dump(wrapped, f, indent=2)
+    print(f"[OK] Results saved → {baseline_path}", flush=True)
 
 
 if __name__ == "__main__":

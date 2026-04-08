@@ -1,14 +1,14 @@
 """
 ARIA -- Baseline Inference Script
 Reproducible baseline scoring using any OpenAI-compatible endpoint.
-Supports Groq (recommended), HuggingFace, vLLM, and OpenAI.
+Supports OpenRouter/Nemotron (recommended), Groq, HuggingFace, vLLM, and OpenAI.
 
 SETUP:
-  1. Get a FREE Groq API key at https://console.groq.com
+  1. Get a FREE OpenRouter API key at https://openrouter.ai/settings/keys
   2. Set your .env file:
-       GROQ_API_KEY=gsk_your_key_here
-       API_BASE_URL=https://api.groq.com/openai/v1
-       MODEL_NAME=llama-3.1-8b-instant
+       OPENROUTER_API_KEY=sk-or-v1-...
+       API_BASE_URL=https://openrouter.ai/api/v1
+       MODEL_NAME=nvidia/nemotron-3-super-120b-a12b:free
   3. Run: python baseline/run_baseline.py
 """
 from __future__ import annotations
@@ -49,7 +49,7 @@ TASKS = ["easy", "medium", "hard", "expert"]
 SEED = 42
 
 # Dynamically fetch the model name
-MODEL_NAME = os.environ.get("MODEL_NAME", "llama-3.1-8b-instant")
+MODEL_NAME = os.environ.get("MODEL_NAME", "nvidia/nemotron-3-super-120b-a12b:free")
 
 # Override agent.py's MODEL_NAME to match .env config
 import baseline.agent as _agent_mod
@@ -61,39 +61,49 @@ _agent_mod.MODEL_NAME = MODEL_NAME
 def run_baseline():
     """
     Priority order for API keys:
-      1. GROQ_API_KEY  (recommended -- free, fast, reliable)
-      2. OPENAI_API_KEY
-      3. HF_TOKEN      (HuggingFace -- free credits run out quickly)
+      1. OPENROUTER_API_KEY (recommended — supports Nemotron, judges' model)
+      2. GROQ_API_KEY       (fallback — free, fast, but 6K TPM limit)
+      3. OPENAI_API_KEY
+      4. HF_TOKEN           (HuggingFace — free credits run out quickly)
     """
+    openrouter_key = os.environ.get("OPENROUTER_API_KEY")
     groq_key = os.environ.get("GROQ_API_KEY")
     openai_key = os.environ.get("OPENAI_API_KEY")
     hf_key = os.environ.get("HF_TOKEN")
     base_url = os.environ.get("API_BASE_URL")
 
-    # Auto-configure Groq if key is set but base_url is not
-    if groq_key and not base_url:
+    # Auto-configure base URLs based on available keys
+    if openrouter_key and not base_url:
+        base_url = "https://openrouter.ai/api/v1"
+    elif groq_key and not base_url:
         base_url = "https://api.groq.com/openai/v1"
-        print("[OK] Auto-configured Groq base URL.")
 
-    api_key = groq_key or openai_key or hf_key
+    api_key = openrouter_key or groq_key or openai_key or hf_key
 
     if not api_key or not OPENAI_AVAILABLE:
         print("[!!] No API key found. Running MultiPass heuristic agent only.")
-        print("     Set GROQ_API_KEY in your .env for LLM-powered agents")
-        print("     (free at console.groq.com)")
+        print("     Set OPENROUTER_API_KEY in your .env for LLM-powered agents")
+        print("     (free at openrouter.ai/settings/keys)")
         client = None
     else:
         client = OpenAI(api_key=api_key, base_url=base_url)
-        key_source = "Groq" if groq_key else ("OpenAI" if openai_key else "HuggingFace")
+        key_source = (
+            "OpenRouter" if openrouter_key else
+            "Groq" if groq_key else
+            "OpenAI" if openai_key else
+            "HuggingFace"
+        )
         print(f"[OK] Connected to {key_source} | Model: {MODEL_NAME}")
         if base_url:
             print(f"     Base URL: {base_url}")
 
     results = {"results": [], "model": MODEL_NAME, "seed": SEED}
+    run_start = time.time()
 
     for task_name in TASKS:
         print(f"\n{'=' * 55}")
         print(f"Task: {task_name.upper()}")
+        task_start = time.time()
 
         for agent_name, AgentClass in [("SinglePass", SinglePassAgent),
                                         ("MultiPass", MultiPassAgent)]:
@@ -164,6 +174,12 @@ def run_baseline():
             results["results"].append(result)
             print(f"    Score: {grade.score:.3f} | F1: {f1_val:.3f} | "
                   f"P: {precision:.3f} | R: {recall:.3f} | Steps: {step_count}")
+
+        task_elapsed = time.time() - task_start
+        print(f"  Task time: {task_elapsed:.1f}s")
+
+    total_elapsed = time.time() - run_start
+    print(f"\n[TIMING] Total run time: {total_elapsed:.1f}s ({total_elapsed/60:.1f} min)")
 
     # Save results
     RESULTS_FILE.parent.mkdir(parents=True, exist_ok=True)

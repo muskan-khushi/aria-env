@@ -7,16 +7,34 @@ Three prompt builders:
   SYSTEM_PROMPT               — role + workflow + scoring rules (shared by all agents)
   build_user_prompt()         — full observation → user-turn string (SinglePassAgent)
   build_gap_identification_prompt() — focused auditing prompt (MultiPassAgent Phase 2)
+
+v3 changes:
+  - SYSTEM_PROMPT now opens with the VALID gap_type enum as the very first thing
+    the model sees, reducing hallucinations like 'sub_processor_transparency'.
+  - build_gap_identification_prompt() repeats the valid enum inline in the TASK
+    block so it is always in the immediate context window when the model decides.
 """
 from __future__ import annotations
 from aria.models import ARIAObservation
 
 # ══════════════════════════════════════════════════════════════════════════════
-# System Prompt  (Bible §7.2 — teaches correct audit workflow AND scoring rules)
+# System Prompt  (v3 — valid enum anchored at top to prevent hallucination)
 # ══════════════════════════════════════════════════════════════════════════════
 
-SYSTEM_PROMPT = """You are ARIA-Auditor, a senior AI compliance analyst. You review regulatory
-documents and identify compliance gaps with precision and evidence.
+SYSTEM_PROMPT = """You are ARIA-Auditor, a senior AI compliance analyst.
+
+═══════════════════════════════════════
+CRITICAL — ONLY THESE gap_type VALUES ARE VALID (use EXACTLY as written):
+═══════════════════════════════════════
+  data_retention         consent_mechanism      breach_notification
+  data_subject_rights    cross_border_transfer  data_minimization
+  purpose_limitation     dpo_requirement        phi_safeguard
+  baa_requirement        opt_out_mechanism      audit_log_requirement
+  availability_control
+
+⛔ DO NOT invent gap_type values. "sub_processor_transparency", "data_sharing",
+   "data_transfer", "subprocessor_management", "third_party_disclosure" are NOT valid.
+   Map them to the closest value above (e.g. subprocessor → baa_requirement).
 
 ═══════════════════════════════════════
 YOUR AUDIT WORKFLOW (follow this order)
@@ -76,7 +94,7 @@ SCORING RULES (know these to win)
   Read every clause carefully before flagging!
 
 ═══════════════════════════════════════
-VALID FIELD VALUES
+VALID FIELD VALUES (repeat for clarity)
 ═══════════════════════════════════════
 
 action_type:
@@ -84,7 +102,7 @@ action_type:
   flag_false_positive, escalate_conflict, respond_to_incident,
   request_clarification, submit_final_report
 
-gap_type:
+gap_type (ONLY these 13 — no others):
   data_retention, consent_mechanism, breach_notification, data_subject_rights,
   cross_border_transfer, data_minimization, purpose_limitation, dpo_requirement,
   phi_safeguard, baa_requirement, opt_out_mechanism, audit_log_requirement,
@@ -125,7 +143,8 @@ def build_user_prompt(obs: ARIAObservation) -> str:
         for section in doc.sections:
             loc = f"{doc.doc_id}.{section.section_id}"
             if loc in obs.visible_sections:
-                visible_content.append(f"[{loc}] {section.title}:\n{section.content}")
+                content_preview = section.content[:300].strip()
+                visible_content.append(f"[{loc}] {section.title}:\n{content_preview}")
 
     # ── Unread sections ────────────────────────────────────────────────────────
     unread: list[str] = []
@@ -228,6 +247,11 @@ def build_gap_identification_prompt(obs: ARIAObservation) -> str:
     Builds a tightly-scoped prompt for the LLM to identify the NEXT compliance gap.
     Used exclusively by MultiPassAgent._llm_identify_gap() in Phase 2.
 
+    v3 changes:
+      - Valid gap_type enum repeated immediately before the TASK block so it is
+        always in immediate context when the model generates its output.
+      - Prevents hallucinations like 'sub_processor_transparency', 'data_sharing'.
+
     Differences from build_user_prompt():
       - Only sends visible section content (not unread stubs) → fewer tokens
       - Explicitly lists already-found findings to prevent duplicates (-0.02 each)
@@ -240,7 +264,7 @@ def build_gap_identification_prompt(obs: ARIAObservation) -> str:
         for section in doc.sections:
             loc = f"{doc.doc_id}.{section.section_id}"
             if loc in obs.visible_sections:
-                content_preview = section.content[:400].strip()
+                content_preview = section.content[:350].strip()
                 visible_sections.append(f"[{loc}] {section.title}:\n{content_preview}")
 
     # ── Already-identified clause refs (avoid duplicates) ─────────────────────
@@ -275,12 +299,23 @@ FINDINGS ALREADY IDENTIFIED (DO NOT DUPLICATE)
 {chr(10).join(f'  - {r}' for r in known_refs) if known_refs else '  (none yet)'}
 
 ══════════════════════════════════════
+VALID gap_type VALUES — USE ONLY THESE (no others are accepted):
+══════════════════════════════════════
+  data_retention, consent_mechanism, breach_notification, data_subject_rights,
+  cross_border_transfer, data_minimization, purpose_limitation, dpo_requirement,
+  phi_safeguard, baa_requirement, opt_out_mechanism, audit_log_requirement,
+  availability_control
+
+⛔ INVALID examples (will cause errors): sub_processor_transparency, data_sharing,
+   subprocessor_management, third_party_disclosure, data_transfer, encryption
+
+══════════════════════════════════════
 TASK
 ══════════════════════════════════════
 Identify ONE compliance gap that:
   1. Is NOT already in the list above
   2. Is a REAL violation (not a red herring — verify the clause is actually non-compliant)
-  3. Has a specific clause_ref, the correct gap_type enum value, and severity
+  3. Has a specific clause_ref, a gap_type from the VALID list above, and severity
 
 If all real gaps are already found, respond with:
 {{"action_type": "submit_final_report"}}
