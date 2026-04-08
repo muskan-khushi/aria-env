@@ -17,6 +17,9 @@ import sys
 
 from openai import OpenAI
 
+from dotenv import load_dotenv
+load_dotenv(override=True)
+
 # ── Environment / model config (matches hackathon mandatory variables) ──────────
 API_KEY      = os.getenv("OPENROUTER_API_KEY") or os.getenv("GROQ_API_KEY") or os.getenv("HF_TOKEN") or os.getenv("API_KEY", "")
 API_BASE_URL = os.getenv("API_BASE_URL", "https://openrouter.ai/api/v1")
@@ -791,11 +794,13 @@ def _get_incident_response_detail(response_type: str, incident) -> str:
 # Episode runner — exact [START]/[STEP]/[END] format
 # ══════════════════════════════════════════════════════════════════════════════
 
-def run_episode(task_name: str, client: OpenAI) -> dict:
-    env   = ARIAEnv()
-    agent = ImprovedMultiPassAgent(client=client, task_name=task_name)
+from baseline.agent import SinglePassAgent
 
-    print(f"[START] task={task_name} env={BENCHMARK} model={MODEL_NAME}", flush=True)
+def run_episode(task_name: str, client: OpenAI, AgentClass, agent_name: str) -> dict:
+    env   = ARIAEnv()
+    agent = AgentClass(client=client, task_name=task_name)
+
+    print(f"[START] task={task_name} agent={agent_name} env={BENCHMARK} model={MODEL_NAME}", flush=True)
 
     try:
         obs = env.reset(task_name=task_name)
@@ -890,7 +895,7 @@ def run_episode(task_name: str, client: OpenAI) -> dict:
 
     return {
         "task":    task_name,
-        "agent":   "MultiPass",
+        "agent":   agent_name,
         "score":   score,
         "f1":      f1_val,
         "precision": precision,
@@ -925,12 +930,15 @@ def main() -> None:
         print("─" * 52, flush=True, file=sys.stderr)
         print(f"  ▶  Task: {task.upper()}", flush=True, file=sys.stderr)
         print("─" * 52, flush=True, file=sys.stderr)
-        task_start = time.time()
-        result = run_episode(task, client)
-        results.append(result)
-        agent_type = "LLM+Heuristic" if API_KEY else "Heuristic-only"
-        task_elapsed = time.time() - task_start
-        print(f"  Curriculum: {agent_type} | Time: {task_elapsed:.1f}s\n", flush=True, file=sys.stderr)
+        
+        for agent_name, AgentClass in [("SinglePass", SinglePassAgent), ("MultiPass", ImprovedMultiPassAgent)]:
+            print(f"\n  [AGENT] {agent_name}...", flush=True, file=sys.stderr)
+            task_start = time.time()
+            result = run_episode(task, client, AgentClass, agent_name)
+            results.append(result)
+            agent_type = "LLM+Heuristic" if API_KEY else "Heuristic-only"
+            task_elapsed = time.time() - task_start
+            print(f"  Curriculum: {agent_type} | Time: {task_elapsed:.1f}s\n", flush=True, file=sys.stderr)
 
     # Summary
     avg   = sum(r["score"] for r in results) / len(results)
@@ -942,7 +950,7 @@ def main() -> None:
     for r in results:
         icon = "✅" if r["success"] else "❌"
         print(
-            f"  {icon}  {r['task']:<10} | score={r['score']:.2f} | steps={r['steps']}",
+            f"  {icon}  {r['task']:<10} [{r['agent']:<10}] | score={r['score']:.2f} | steps={r['steps']}",
             flush=True,
             file=sys.stderr
         )
