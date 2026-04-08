@@ -34,6 +34,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import time
 from typing import Optional
 
 from aria.models import (
@@ -212,27 +213,99 @@ def _safe_action(data: dict, obs: ARIAObservation) -> ARIAAction:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# SinglePassAgent
+# SinglePassAgent  (v4 — phase-aware LLM agent with guardrails)
 # ══════════════════════════════════════════════════════════════════════════════
 
 class SinglePassAgent:
     """
-    LLM baseline agent with rolling 6-message conversation window.
-    v3: uses _safe_action() to guard against invalid gap_type enum values.
+    LLM-driven agent with phase-aware guardrails to prevent infinite read loops.
+
+    v4 improvements over v3:
+      - Read cap: stops reading after task-aware limit (easy=5, medium=8, hard=10, expert=10)
+      - Smart fallback: after read phase, falls back to heuristic gap ID instead of more reads
+      - Forced finalization: submits final report when steps_remaining < 4
+      - Incident handling: responds to active incidents immediately
+      - Citation/remediation: cites uncited findings and remediates before finalizing
     """
 
-    def __init__(self, client) -> None:
-        self.client  = client
-        self.history = []
+    _READ_CAPS = {"easy": 5, "medium": 8, "hard": 10, "expert": 10}
+    _LLM_FAIL_THRESHOLD = 3
+
+    def __init__(self, client, task_name: str = "easy") -> None:
+        self.client    = client
+        self.history   = []
+        self.task_name = task_name
+        self._max_read = self._READ_CAPS.get(task_name, 8)
+        self._llm_fail_count = 0
+        self._llm_disabled   = False
+        self._escalated_conflicts: set[str] = set()
 
     def act(self, obs: ARIAObservation) -> ARIAAction:
+        step  = obs.steps_taken
+        total = step + obs.steps_remaining
+
+        # Priority 0: incidents always take precedence
+        if obs.active_incident:
+            action = self._handle_incident(obs)
+            if action:
+                return action
+
+        # Priority 1: finalize when almost out of steps
+        if obs.steps_remaining <= 4:
+            return self._finalization_phase(obs)
+
+        # Priority 2: cite any uncited findings immediately (+0.12 each)
+        uncited = self._cite_next_uncited(obs)
+        if uncited:
+            return uncited
+
+        # Priority 3: remediate unremediated findings
+        if step > total * 0.65:
+            unremediated = [
+                f for f in obs.active_findings
+                if getattr(f.status, "value", str(f.status)) not in ("REMEDIATED", "RETRACTED")
+            ]
+            if unremediated:
+                f = unremediated[0]
+                return ARIAAction(
+                    action_type=ActionType.SUBMIT_REMEDIATION,
+                    finding_id=f.finding_id,
+                    remediation_text=_get_remediation_text(f.gap_type),
+                    target_framework=f.framework,
+                )
+
+        # Determine if we should still be reading
+        still_reading = (
+            step < total * 0.30
+            and len(obs.visible_sections) < self._max_read
+        )
+
+        # If we're past read phase and LLM keeps failing, use heuristic
+        if not still_reading and (self._llm_disabled or self._llm_fail_count >= 2):
+            return self._heuristic_fallback(obs)
+
+        # Main LLM call (skip entirely if disabled)
+        if self._llm_disabled:
+            return self._heuristic_fallback(obs)
+        return self._llm_act(obs, force_audit=not still_reading)
+
+    def _llm_act(self, obs: ARIAObservation, force_audit: bool = False) -> ARIAAction:
         from baseline.prompts import SYSTEM_PROMPT, build_user_prompt
 
         user_msg = build_user_prompt(obs)
+
+        # If past read phase, inject a strong directive to identify gaps, not read
+        if force_audit:
+            user_msg += (
+                "\n\n⚠️ YOU HAVE READ ENOUGH SECTIONS. Do NOT use request_section."
+                "\nYour ONLY options now: identify_gap, cite_evidence, submit_remediation,"
+                " escalate_conflict, or submit_final_report."
+                "\nIdentify a compliance gap NOW."
+            )
+
         self.history.append({"role": "user", "content": user_msg})
 
         try:
-            # Try with JSON mode first; fall back to plain text if unsupported
             try:
                 response = self.client.chat.completions.create(
                     model=MODEL_NAME,
@@ -245,7 +318,6 @@ class SinglePassAgent:
                     max_tokens=_MAX_TOKENS,
                 )
             except Exception:
-                # Some OpenRouter providers don't support response_format
                 response = self.client.chat.completions.create(
                     model=MODEL_NAME,
                     temperature=_TEMPERATURE,
@@ -255,14 +327,156 @@ class SinglePassAgent:
                     ],
                     max_tokens=_MAX_TOKENS,
                 )
-            raw  = response.choices[0].message.content
+            raw = response.choices[0].message.content
             self.history.append({"role": "assistant", "content": raw})
             data = _extract_json(raw)
-            return _safe_action(data, obs)   # v3: normalise before validation
+
+            # If LLM returns request_section but we're past read phase, override
+            if force_audit and data.get("action_type") == "request_section":
+                print("    [SinglePass] LLM tried to read in audit phase — using heuristic", flush=True)
+                self._llm_fail_count += 1
+                return self._heuristic_fallback(obs)
+
+            self._llm_fail_count = 0
+            return _safe_action(data, obs)
 
         except Exception as exc:
-            print(f"    [SinglePass] LLM error: {exc} — using fallback", flush=True)
+            self._llm_fail_count += 1
+            is_rate_limit = "429" in str(exc) or "rate limit" in str(exc).lower()
+            print(
+                f"    [SinglePass] LLM error ({self._llm_fail_count}): {exc} — using fallback",
+                flush=True,
+            )
+
+            if self._llm_fail_count >= self._LLM_FAIL_THRESHOLD:
+                self._llm_disabled = True
+                print(
+                    "    [SinglePass] LLM disabled — switching to pure heuristic mode.",
+                    flush=True,
+                )
+                return self._heuristic_fallback(obs)
+
+            # Brief backoff on rate-limit errors so we don't hammer the API
+            if is_rate_limit:
+                sleep_secs = min(5 * self._llm_fail_count, 15)
+                print(f"    [SinglePass] Rate limited — sleeping {sleep_secs}s", flush=True)
+                time.sleep(sleep_secs)
+
+            if self._llm_fail_count >= 2 and len(obs.visible_sections) >= 3:
+                return self._heuristic_fallback(obs)
             return _fallback_action(obs)
+
+    def _heuristic_fallback(self, obs: ARIAObservation) -> ARIAAction:
+        """Fall back to heuristic gap detection instead of reading more sections."""
+        known_refs = {f.clause_ref for f in obs.active_findings}
+
+        for doc in obs.documents:
+            for section in doc.sections:
+                loc = f"{doc.doc_id}.{section.section_id}"
+                if loc not in obs.visible_sections:
+                    continue
+                content_lower = section.content.lower()
+                clause_ref = f"{doc.doc_id}.{section.section_id}"
+                if clause_ref in known_refs:
+                    continue
+
+                for gap_type_str, (triggers, safe_phrases), severity_str, desc_tpl in _HEURISTIC_PATTERNS:
+                    has_trigger = any(p in content_lower for p in triggers)
+                    is_safe = any(p in content_lower for p in safe_phrases)
+                    if has_trigger and not is_safe:
+                        try:
+                            gap_type = GapType(gap_type_str)
+                            severity = Severity(severity_str)
+                        except Exception:
+                            gap_type = gap_type_str
+                            severity = severity_str
+                        return ARIAAction(
+                            action_type=ActionType.IDENTIFY_GAP,
+                            clause_ref=clause_ref,
+                            gap_type=gap_type,
+                            severity=severity,
+                            description=desc_tpl.format(loc=clause_ref),
+                        )
+
+        # No heuristic gaps found — try reading one more section or finalize
+        for doc in obs.documents:
+            for section in doc.sections:
+                loc = f"{doc.doc_id}.{section.section_id}"
+                if loc not in obs.visible_sections:
+                    return ARIAAction(
+                        action_type=ActionType.REQUEST_SECTION,
+                        document_id=doc.doc_id,
+                        section_id=section.section_id,
+                    )
+        return self._finalization_phase(obs)
+
+    def _cite_next_uncited(self, obs: ARIAObservation) -> Optional[ARIAAction]:
+        cited_ids = {c.finding_id for c in obs.evidence_citations}
+        uncited = [f for f in obs.active_findings if f.finding_id not in cited_ids]
+        for finding in uncited:
+            passage = _find_passage(finding.clause_ref, obs)
+            if passage:
+                return ARIAAction(
+                    action_type=ActionType.CITE_EVIDENCE,
+                    finding_id=finding.finding_id,
+                    passage_text=passage["text"],
+                    passage_location=passage["loc"],
+                )
+        return None
+
+    def _finalization_phase(self, obs: ARIAObservation) -> ARIAAction:
+        # Cite uncited
+        if obs.steps_remaining > 2:
+            uncited = self._cite_next_uncited(obs)
+            if uncited:
+                return uncited
+
+        # Remediate
+        if obs.steps_remaining > 2:
+            unremediated = [
+                f for f in obs.active_findings
+                if getattr(f.status, "value", str(f.status)) not in ("REMEDIATED", "RETRACTED")
+            ]
+            if unremediated:
+                f = unremediated[0]
+                return ARIAAction(
+                    action_type=ActionType.SUBMIT_REMEDIATION,
+                    finding_id=f.finding_id,
+                    remediation_text=_get_remediation_text(f.gap_type),
+                    target_framework=f.framework,
+                )
+
+        # Escalate conflicts
+        conflicts = getattr(obs.regulatory_context, "conflicts", []) or []
+        for conflict in conflicts:
+            cid = getattr(conflict, "conflict_id", str(conflict))
+            if cid not in self._escalated_conflicts:
+                self._escalated_conflicts.add(cid)
+                return ARIAAction(
+                    action_type=ActionType.ESCALATE_CONFLICT,
+                    framework_a=getattr(conflict, "framework_a", None),
+                    framework_b=getattr(conflict, "framework_b", None),
+                    conflict_desc=getattr(conflict, "description", "Cross-framework conflict"),
+                )
+
+        return ARIAAction(action_type=ActionType.SUBMIT_FINAL_REPORT)
+
+    def _handle_incident(self, obs: ARIAObservation) -> Optional[ARIAAction]:
+        inc = obs.active_incident
+        if inc is None:
+            return None
+        completed = set(getattr(inc, "completed_responses", []) or [])
+        required = list(getattr(inc, "required_responses", []) or [])
+        for resp in required:
+            resp_key = getattr(resp, "value", str(resp))
+            if resp_key not in {getattr(c, "value", str(c)) for c in completed}:
+                return ARIAAction(
+                    action_type=ActionType.RESPOND_TO_INCIDENT,
+                    incident_id=inc.incident_id,
+                    response_type=resp,
+                    response_detail=_get_incident_response_detail(resp_key, inc),
+                )
+        return None
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -407,6 +621,7 @@ class MultiPassAgent:
 
         except Exception as exc:
             self._llm_fail_count += 1
+            is_rate_limit = "429" in str(exc) or "rate limit" in str(exc).lower()
             print(
                 f"    [MultiPass] LLM error "
                 f"({self._llm_fail_count}/{self._LLM_FAIL_THRESHOLD}): {exc}",
@@ -418,6 +633,10 @@ class MultiPassAgent:
                     "    [MultiPass] LLM disabled — switching to heuristic mode.",
                     flush=True,
                 )
+            elif is_rate_limit:
+                sleep_secs = min(5 * self._llm_fail_count, 15)
+                print(f"    [MultiPass] Rate limited — sleeping {sleep_secs}s", flush=True)
+                time.sleep(sleep_secs)
             return self._heuristic_identify_gap(obs)
 
     def _heuristic_identify_gap(self, obs: ARIAObservation) -> ARIAAction:

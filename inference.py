@@ -13,6 +13,7 @@ import re
 import sys
 import time
 from typing import Optional, List
+import sys
 
 from openai import OpenAI
 
@@ -915,37 +916,39 @@ def main() -> None:
     print(
         f"\n🚀  ARIA Baseline | model={MODEL_NAME} | tasks={TASKS}\n",
         flush=True,
+        file=sys.stderr
     )
 
     results = []
     run_start = time.time()
     for task in TASKS:
-        print("─" * 52, flush=True)
-        print(f"  ▶  Task: {task.upper()}", flush=True)
-        print("─" * 52, flush=True)
+        print("─" * 52, flush=True, file=sys.stderr)
+        print(f"  ▶  Task: {task.upper()}", flush=True, file=sys.stderr)
+        print("─" * 52, flush=True, file=sys.stderr)
         task_start = time.time()
         result = run_episode(task, client)
         results.append(result)
         agent_type = "LLM+Heuristic" if API_KEY else "Heuristic-only"
         task_elapsed = time.time() - task_start
-        print(f"  Curriculum: {agent_type} | Time: {task_elapsed:.1f}s\n", flush=True)
+        print(f"  Curriculum: {agent_type} | Time: {task_elapsed:.1f}s\n", flush=True, file=sys.stderr)
 
     # Summary
     avg   = sum(r["score"] for r in results) / len(results)
     total_pass = sum(1 for r in results if r["success"])
     total_elapsed = time.time() - run_start
-    print("=" * 52, flush=True)
-    print("         ARIA BASELINE SUMMARY", flush=True)
-    print("=" * 52, flush=True)
+    print("=" * 52, flush=True, file=sys.stderr)
+    print("         ARIA BASELINE SUMMARY", flush=True, file=sys.stderr)
+    print("=" * 52, flush=True, file=sys.stderr)
     for r in results:
         icon = "✅" if r["success"] else "❌"
         print(
             f"  {icon}  {r['task']:<10} | score={r['score']:.2f} | steps={r['steps']}",
             flush=True,
+            file=sys.stderr
         )
-    print(f"\n  🏆  Average : {avg:.2f}", flush=True)
-    print(f"  📋  Passed  : {total_pass} / {len(results)}", flush=True)
-    print(f"  ⏱️  Total   : {total_elapsed:.1f}s ({total_elapsed/60:.1f} min)", flush=True)
+    print(f"\n  🏆  Average : {avg:.2f}", flush=True, file=sys.stderr)
+    print(f"  📋  Passed  : {total_pass} / {len(results)}", flush=True, file=sys.stderr)
+    print(f"  ⏱️  Total   : {total_elapsed:.1f}s ({total_elapsed/60:.1f} min)", flush=True, file=sys.stderr)
 
     # Persist results — same format as baseline/run_baseline.py
     # Write to BOTH locations so the server and leaderboard can read them
@@ -958,14 +961,14 @@ def main() -> None:
     root_path = _Path(__file__).parent / "baseline_results.json"
     with open(root_path, "w") as f:
         _json.dump(wrapped, f, indent=2)
-    print(f"[OK] Results saved → {root_path}", flush=True)
+    print(f"[OK] Results saved → {root_path}", flush=True, file=sys.stderr)
 
     # 2. baseline/baseline_results.json (server reads from here)
     baseline_path = _Path(__file__).parent / "baseline" / "baseline_results.json"
     baseline_path.parent.mkdir(parents=True, exist_ok=True)
     with open(baseline_path, "w") as f:
         _json.dump(wrapped, f, indent=2)
-    print(f"[OK] Results saved → {baseline_path}", flush=True)
+    print(f"[OK] Results saved → {baseline_path}", flush=True, file=sys.stderr)
 
 
 if __name__ == "__main__":

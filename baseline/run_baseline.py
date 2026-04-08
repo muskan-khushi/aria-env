@@ -115,11 +115,11 @@ def run_baseline():
             env = ARIAEnv()
             obs = env.reset(task_name=task_name, seed=SEED)
 
-            # MultiPassAgent v2 requires task_name for task-aware read caps
+            # Both agents require task_name for task-aware read caps
             if agent_name == "MultiPass":
                 agent = MultiPassAgent(client=client, task_name=task_name)
             else:
-                agent = AgentClass(client)
+                agent = SinglePassAgent(client=client, task_name=task_name)
 
             step_count = 0
             total_reward = 0.0

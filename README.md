@@ -71,23 +71,23 @@ Watch an agent conduct a real-time GDPR audit end-to-end. The dashboard surfaces
 
 All scores are fully reproducible from `inference.py` using `seed=42` and `temperature=0.0`. Results reflect the performance of **NVIDIA Nemotron 3 Super (120B, 12B active MoE)** via OpenRouter, measured with the `MultiPassAgent` against GPT-4o reference targets.
 
-| Task | Difficulty | Focus | **Nemotron 3 Super** | **Llama 3.1-8B** | **GPT-4o Target** | Random Floor |
+| Task | Difficulty | Focus | **Nemotron 3 Super (SinglePass)** | **Nemotron 3 Super (MultiPass)** | **GPT-4o Target** | Random Floor |
 |:---|:---:|:---|:---:|:---:|:---:|:---:|
-| **Easy** | 🟢 | Single-document GDPR consistency | **0.72** | 0.63 | 0.94 | 0.15 |
-| **Medium** | 🟡 | Cross-document DPA + Policy alignment | **0.59** | 0.35 | 0.71 | 0.09 |
-| **Hard** | 🟠 | CCPA vs. GDPR conflict resolution | **0.47** | 0.43 | 0.52 | 0.04 |
-| **Expert** | 🔴 | Live breach response mid-audit | **0.36** | 0.37 | 0.33 | 0.02 |
-| | | **Average** | **0.53** | 0.45 | 0.63 | 0.08 |
+| **Easy** | 🟢 | Single-document GDPR consistency | **0.74** | 0.74 | 0.94 | 0.15 |
+| **Medium** | 🟡 | Cross-document DPA + Policy alignment | **0.60** | 0.55 | 0.71 | 0.09 |
+| **Hard** | 🟠 | CCPA vs. GDPR conflict resolution | **0.52** | 0.47 | 0.52 | 0.04 |
+| **Expert** | 🔴 | Live breach response mid-audit | **0.35** | 0.36 | 0.33 | 0.02 |
+| | | **Average** | **0.55** | 0.53 | 0.63 | 0.08 |
 
 ### Analysis: Nemotron 3 Super Performance
 
 Results from the **April 8, 2026** evaluation using NVIDIA Nemotron 3 Super (120B params, 12B active via MoE) via OpenRouter:
 
-**Medium-Tier Breakthrough.** The most dramatic improvement appears on the Medium task: **0.59 vs. Llama's 0.35** — a **69% uplift**. Nemotron's larger reasoning capacity enables it to track cross-document dependencies between Data Processing Agreements and Privacy Policies that overwhelmed the 8B model.
+**SinglePass Outperforms MultiPass.** With guardrails added to prevent infinite read loops, the `SinglePassAgent` now frequently outperforms the heuristic-driven `MultiPassAgent`. Its ability to holistically evaluate the document state allows it to score **0.60** on Medium (vs 0.55) and **0.52** on Hard (vs 0.47), effectively matching the GPT-4o reference target on the computationally intensive Hard task!
 
-**Precision Over Recall.** Nemotron achieves perfect **1.0 precision** on EASY (SinglePass) and HARD (MultiPass), meaning every gap it identifies is a true positive. On MEDIUM, it reaches **P=0.80 / R=0.80 / F1=0.80** — a balanced performance that smaller models struggle to achieve.
+**Precision Over Recall.** Nemotron achieves perfect **1.0 precision** on EASY and HARD for both agents, meaning every gap it identifies is a true positive. Its balanced approach correctly isolates true compliance violations amid adversarial red herrings.
 
-**Zero Token Overflow Errors.** Unlike Llama 3.1-8B via Groq (which hit 413 rate-limit errors on HARD/EXPERT tasks due to the 6K TPM ceiling), Nemotron's **262K context window** via OpenRouter processes all four difficulty tiers without a single token overflow.
+**Phase-Aware Guardrails Save Tokens.** The transition to `SinglePassAgent (v4)` added hard caps on reading, an intelligent fallback to heuristic extraction for recurring LLM failures, and forced incident handling. These minimal time-management controls unlocked the underlying reasoning capability of Nemotron 3 Super across dense rule sets without hitting infinite loops!
 
 **Strong Expert Performance.** Nemotron scores **0.36** on the Expert task — virtually matching the GPT-4o reference target of **0.33**. The `MultiPassAgent` framework's curriculum structure enables systematic incident response under deadline pressure.
 
@@ -373,7 +373,7 @@ ARIA is built to pass the `openenv validate` gate in its entirety:
 
 Two baseline agents are provided in `baseline/agent.py`:
 
-**`SinglePassAgent`** — LLM-driven with a rolling 4-message conversation window. Attempts structured `response_format={"type": "json_object"}` with automatic fallback to robust regex-based JSON extraction for providers that don't support structured output. Reference scores (Nemotron 3 Super): Easy 0.59 · Medium 0.52 · Hard 0.03 · Expert 0.03.
+**`SinglePassAgent` (v4)** — LLM-driven with a rolling 4-message conversation window and phase-aware guardrails to prevent infinite read loops. Features read caps, incident handling, forced finalization, and smart fallback to heuristic identification upon LLM failure. Reference scores (Nemotron 3 Super): Easy 0.74 · Medium 0.60 · Hard 0.52 · Expert 0.35.
 
 **`MultiPassAgent` (v3)** — A curriculum-structured heuristic agent that partitions the step budget into four sequential phases:
 
