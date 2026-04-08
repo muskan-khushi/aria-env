@@ -245,7 +245,7 @@ The script emits structured output in the mandatory `[START]` / `[STEP]` / `[END
 
 ```bash
 # Clone and install dependencies
-git clone https://huggingface.co/spaces/muskankhushi/aria-compliance-v1
+git clone https://github.com/muskan-khushi/aria-env.git
 cd aria
 pip install -r requirements.txt
 
