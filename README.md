@@ -142,6 +142,9 @@ ARIA encodes four production regulatory frameworks in `aria/frameworks.py`:
 
 ## Action & Observation Space
 
+> [!TIP]
+> For a detailed breakdown of all actions, required parameters, and usage scenarios, see the [**Action Space Guide**](ACTION_SPACE.md).
+
 ### Action Space
 
 Every agent action is a single JSON object conforming to `ARIAAction` (Pydantic v2). The `action_type` field determines which additional fields are required:
