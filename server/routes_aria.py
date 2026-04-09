@@ -28,8 +28,8 @@ async def run_internal_audit(task_id: str, session_id: str):
     api_base = f"http://127.0.0.1:{PORT}"
     
     # 1. Initialize Agent
-    api_key = os.environ.get("GROQ_API_KEY") or os.environ.get("HF_TOKEN") or os.environ.get("OPENAI_API_KEY")
-    base_url = os.environ.get("API_BASE_URL")
+    api_key = os.environ.get("HF_TOKEN") or os.environ.get("OPENAI_API_KEY")
+    base_url = os.environ.get("API_BASE_URL", "https://api-inference.huggingface.co/v1/")
     client = OpenAI(api_key=api_key, base_url=base_url) if api_key else None
     agent = MultiPassAgent(client)
     

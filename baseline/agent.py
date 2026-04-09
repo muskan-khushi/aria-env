@@ -37,7 +37,7 @@ from aria.models import (
 )
 
 # ── Config ───────────────────────────────────────────────────────────────────
-MODEL_NAME   = os.environ.get("MODEL_NAME", "nvidia/nemotron-3-super-120b-a12b:free")
+MODEL_NAME   = os.environ.get("MODEL_NAME", "Qwen/Qwen2.5-72B-Instruct")
 _MAX_TOKENS  = 384    # gap JSON ~40 tokens; 384 is generous (was 256)
 _TEMPERATURE = 0.0
 

@@ -1,14 +1,14 @@
 """
 ARIA -- Baseline Inference Script
 Reproducible baseline scoring using any OpenAI-compatible endpoint.
-Supports OpenRouter/Nemotron (recommended), Groq, HuggingFace, vLLM, and OpenAI.
+Supports HuggingFace Inference Endpoints (recommended), and OpenAI.
 
 SETUP:
-  1. Get a FREE OpenRouter API key at https://openrouter.ai/settings/keys
+  1. Have your Hugging Face API key ready
   2. Set your .env file:
-       OPENROUTER_API_KEY=sk-or-v1-...
-       API_BASE_URL=https://openrouter.ai/api/v1
-       MODEL_NAME=nvidia/nemotron-3-super-120b-a12b:free
+       HF_TOKEN=your_token_here
+       API_BASE_URL=https://api-inference.huggingface.co/v1/
+       MODEL_NAME=Qwen/Qwen2.5-72B-Instruct
   3. Run: python baseline/run_baseline.py
 """
 from __future__ import annotations
@@ -49,7 +49,7 @@ TASKS = ["easy", "medium", "hard", "expert"]
 SEED = 42
 
 # Dynamically fetch the model name
-MODEL_NAME = os.environ.get("MODEL_NAME", "nvidia/nemotron-3-super-120b-a12b:free")
+MODEL_NAME = os.environ.get("MODEL_NAME", "Qwen/Qwen2.5-72B-Instruct")
 
 # Override agent.py's MODEL_NAME to match .env config
 import baseline.agent as _agent_mod
@@ -61,38 +61,22 @@ _agent_mod.MODEL_NAME = MODEL_NAME
 def run_baseline():
     """
     Priority order for API keys:
-      1. OPENROUTER_API_KEY (recommended — supports Nemotron, judges' model)
-      2. GROQ_API_KEY       (fallback — free, fast, but 6K TPM limit)
-      3. OPENAI_API_KEY
-      4. HF_TOKEN           (HuggingFace — free credits run out quickly)
+      1. HF_TOKEN           (HuggingFace)
+      2. OPENAI_API_KEY
     """
-    openrouter_key = os.environ.get("OPENROUTER_API_KEY")
-    groq_key = os.environ.get("GROQ_API_KEY")
-    openai_key = os.environ.get("OPENAI_API_KEY")
     hf_key = os.environ.get("HF_TOKEN")
-    base_url = os.environ.get("API_BASE_URL")
+    openai_key = os.environ.get("OPENAI_API_KEY")
+    base_url = os.environ.get("API_BASE_URL", "https://api-inference.huggingface.co/v1/")
 
-    # Auto-configure base URLs based on available keys
-    if openrouter_key and not base_url:
-        base_url = "https://openrouter.ai/api/v1"
-    elif groq_key and not base_url:
-        base_url = "https://api.groq.com/openai/v1"
-
-    api_key = openrouter_key or groq_key or openai_key or hf_key
+    api_key = hf_key or openai_key
 
     if not api_key or not OPENAI_AVAILABLE:
         print("[!!] No API key found. Running MultiPass heuristic agent only.")
-        print("     Set OPENROUTER_API_KEY in your .env for LLM-powered agents")
-        print("     (free at openrouter.ai/settings/keys)")
+        print("     Set HF_TOKEN in your .env for LLM-powered agents")
         client = None
     else:
         client = OpenAI(api_key=api_key, base_url=base_url)
-        key_source = (
-            "OpenRouter" if openrouter_key else
-            "Groq" if groq_key else
-            "OpenAI" if openai_key else
-            "HuggingFace"
-        )
+        key_source = "HuggingFace" if hf_key else "OpenAI"
         print(f"[OK] Connected to {key_source} | Model: {MODEL_NAME}")
         if base_url:
             print(f"     Base URL: {base_url}")

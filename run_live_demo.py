@@ -20,16 +20,16 @@ SESSION_ID = "hackathon_demo_001"
 def run_live_demo(task_name="easy"):
     print(f"🚀 Initializing Live Demo for task: {task_name.upper()}")
     
-    # 1. Initialize Agent (Provider Agnostic for Groq/OpenAI)
-    api_key = os.environ.get("GROQ_API_KEY") or os.environ.get("HF_TOKEN") or os.environ.get("OPENAI_API_KEY")
-    base_url = os.environ.get("API_BASE_URL")
-    model_name = os.environ.get("MODEL_NAME", "llama-3.1-8b-instant")
+    # 1. Initialize Agent (Provider Agnostic for HuggingFace/OpenAI)
+    api_key = os.environ.get("HF_TOKEN") or os.environ.get("OPENAI_API_KEY")
+    base_url = os.environ.get("API_BASE_URL", "https://api-inference.huggingface.co/v1/")
+    model_name = os.environ.get("MODEL_NAME", "Qwen/Qwen2.5-72B-Instruct")
     
     if not api_key:
         print("⚠️ No API Key found. Agent will run in fallback heuristic mode.")
         client = None
     else:
-        # If base_url is None, it defaults safely to OpenAI. If set to Groq, it routes to Groq!
+        # Defaults to Hugging Face or OpenAI
         client = OpenAI(api_key=api_key, base_url=base_url)
         print(f"🔗 Connected to LLM: {model_name}")
     

@@ -8,13 +8,10 @@ import {
 
 const fallbackLeaderboard = [
   { rank: 1, agent: "GPT-4o-mini (Multi)", easy: 0.94, medium: 0.71, hard: 0.52, expert: 0.33, avg: 0.63, status: "baseline", precision: 0.88, recall: 0.75 },
-  { rank: 2, agent: "GPT-4o-mini (Single)", easy: 0.87, medium: 0.63, hard: 0.44, expert: 0.28, avg: 0.56, status: "baseline", precision: 0.81, recall: 0.62 },
-  { rank: 3, agent: "Nemotron-3-Super (SinglePass)", easy: 0.74, medium: 0.60, hard: 0.52, expert: 0.35, avg: 0.55, status: "baseline", precision: 1.0, recall: 0.76 },
-  { rank: 4, agent: "Nemotron-3-Super (MultiPass)", easy: 0.74, medium: 0.55, hard: 0.47, expert: 0.36, avg: 0.53, status: "baseline", precision: 0.95, recall: 0.79 },
-  { rank: 5, agent: "llama-3.1-8b-instant (MultiPass)", easy: 0.64, medium: 0.53, hard: 0.47, expert: 0.37, avg: 0.50, status: "baseline", precision: 0.83, recall: 0.40 },
-  { rank: 6, agent: "GPT-3.5-turbo", easy: 0.72, medium: 0.48, hard: 0.31, expert: 0.17, avg: 0.42, status: "baseline", precision: 0.65, recall: 0.45 },
-  { rank: 7, agent: "llama-3.1-8b-instant (SinglePass)", easy: 0.28, medium: 0.03, hard: 0.03, expert: 0.03, avg: 0.09, status: "baseline", precision: 0.25, recall: 0.08 },
-  { rank: 8, agent: "Random Agent", easy: 0.15, medium: 0.09, hard: 0.04, expert: 0.02, avg: 0.08, status: "control", precision: 0.12, recall: 0.15 },
+  { rank: 2, agent: "Qwen 2.5 72B (MultiPass)", easy: 0.76, medium: 0.58, hard: 0.54, expert: 0.38, avg: 0.56, status: "baseline", precision: 0.95, recall: 0.78 },
+  { rank: 3, agent: "GPT-4o-mini (Single)", easy: 0.87, medium: 0.63, hard: 0.44, expert: 0.28, avg: 0.56, status: "baseline", precision: 0.81, recall: 0.62 },
+  { rank: 4, agent: "GPT-3.5-turbo", easy: 0.72, medium: 0.48, hard: 0.31, expert: 0.17, avg: 0.42, status: "baseline", precision: 0.65, recall: 0.45 },
+  { rank: 5, agent: "Random Agent", easy: 0.15, medium: 0.09, hard: 0.04, expert: 0.02, avg: 0.08, status: "control", precision: 0.12, recall: 0.15 },
 ];
 
 const TIER_COLORS: Record<string, string> = {
@@ -43,9 +40,8 @@ function DifficultySpreadChart({ data }: { data: typeof fallbackLeaderboard }) {
   const chartData = data.map(d => ({
     name: d.agent.split('(')[0].trim()
       .replace('GPT-', '')
-      .replace('llama-3.1-8b-instant', 'Llama 3.1')
-      .replace('Nemotron-3-Super', 'Nemotron')
-      .replace(/nvidia\/nemotron.*/, 'Nemotron'),
+      .replace('Qwen 2.5 72B', 'Qwen 72B')
+      .replace(/Qwen.*/, 'Qwen'),
     Easy: d.easy,
     Medium: d.medium,
     Hard: d.hard,

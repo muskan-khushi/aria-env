@@ -35,16 +35,12 @@ load_dotenv(override=True)
 from openai import OpenAI
 
 # ── Env / model config ───────────────────────────────────────────────────────
-API_KEY = (
-    os.getenv("HF_TOKEN")
-    or os.getenv("OPENROUTER_API_KEY")
-    or os.getenv("GROQ_API_KEY")
-    or os.getenv("API_KEY", "")
-)
-API_BASE_URL = os.getenv("API_BASE_URL", "https://openrouter.ai/api/v1")
-MODEL_NAME   = os.getenv("MODEL_NAME",   "nvidia/nemotron-3-super-120b-a12b:free")
+# ── Env / model config ───────────────────────────────────────────────────────
+API_KEY = os.getenv("HF_TOKEN")
+API_BASE_URL = os.getenv("API_BASE_URL", "https://api-inference.huggingface.co/v1/")
+MODEL_NAME   = os.getenv("MODEL_NAME",   "Qwen/Qwen2.5-72B-Instruct")
 BENCHMARK    = "aria-compliance-v1"
-TASKS        = ["easy", "medium", "hard", "expert"]
+TASK_NAME    = os.getenv("TASK_NAME", "hard")  # Defaulting to 1 specific task
 MAX_STEPS    = 50   # hard cap per episode (well within 20-min budget)
 SEED         = 42
 
@@ -190,63 +186,36 @@ def run_episode(task_name: str, client: OpenAI, AgentClass, agent_name: str) -> 
 
 def main() -> None:
     if not API_KEY:
-        print("[WARN] No API key found — LLM calls will fail; agents fall back to heuristic.", file=sys.stderr)
+        print("[WARN] No HF_TOKEN found — LLM calls will fail; agents fall back to heuristic.", file=sys.stderr)
 
     client = OpenAI(api_key=API_KEY or "no-key", base_url=API_BASE_URL)
 
+    agent_name = "MultiPass"
+    AgentClass = MultiPassAgent
+
     print(
-        f"\n ARIA Baseline | model={MODEL_NAME} | tasks={TASKS} | agents=SinglePass,MultiPass\n",
+        f"\n ARIA Baseline | model={MODEL_NAME} | task={TASK_NAME} | agent={agent_name}\n",
         file=sys.stderr, flush=True,
     )
 
-    results    = []
     run_start  = time.time()
+    
+    print(f"\n{'─'*52}\n  Task: {TASK_NAME.upper()}\n{'─'*52}", file=sys.stderr, flush=True)
+    print(f"  [AGENT] {agent_name}...", file=sys.stderr, flush=True)
 
-    for task in TASKS:
-        print(f"\n{'─'*52}\n  Task: {task.upper()}\n{'─'*52}", file=sys.stderr, flush=True)
+    result = run_episode(TASK_NAME, client, AgentClass, agent_name)
+    elapsed = time.time() - run_start
 
-        for agent_name, AgentClass in [
-            ("SinglePass", SinglePassAgent),
-            ("MultiPass",  MultiPassAgent),
-        ]:
-            print(f"  [AGENT] {agent_name}...", file=sys.stderr, flush=True)
-            t0     = time.time()
-            result = run_episode(task, client, AgentClass, agent_name)
-            results.append(result)
-            elapsed = time.time() - t0
-            icon    = "✅" if result["success"] else "❌"
-            print(
-                f"  {icon} score={result['score']:.3f} | f1={result['f1']:.3f} "
-                f"| steps={result['steps']} | time={elapsed:.1f}s",
-                file=sys.stderr, flush=True,
-            )
-
-    # ── Summary ───────────────────────────────────────────────────────────────
-    avg         = sum(r["score"]   for r in results) / len(results)
-    avg_f1      = sum(r["f1"]      for r in results) / len(results)
-    total_pass  = sum(1            for r in results if r["success"])
-    total_time  = time.time() - run_start
-
-    print("\n" + "=" * 52, file=sys.stderr)
-    print("          ARIA BASELINE SUMMARY", file=sys.stderr)
-    print("=" * 52, file=sys.stderr)
-    print(f"  {'Task':<10} {'Agent':<12} {'Score':<8} {'F1':<8} {'Steps'}", file=sys.stderr)
-    print(f"  {'-'*50}", file=sys.stderr)
-    for r in results:
-        icon = "✅" if r["success"] else "❌"
-        print(
-            f"  {icon} {r['task']:<10} {r['agent']:<12} "
-            f"{r['score']:.3f}    {r['f1']:.3f}    {r['steps']}",
-            file=sys.stderr,
-        )
-    print(f"\n  Average score : {avg:.3f}", file=sys.stderr)
-    print(f"  Average F1    : {avg_f1:.3f}", file=sys.stderr)
-    print(f"  Passed        : {total_pass} / {len(results)}", file=sys.stderr)
-    print(f"  Total time    : {total_time:.1f}s ({total_time/60:.1f} min)", file=sys.stderr)
+    icon = "✅" if result["success"] else "❌"
+    print(
+        f"  {icon} score={result['score']:.3f} | f1={result['f1']:.3f} "
+        f"| steps={result['steps']} | time={elapsed:.1f}s\n",
+        file=sys.stderr, flush=True,
+    )
 
     # ── Persist results ───────────────────────────────────────────────────────
     from pathlib import Path as _Path
-    wrapped = {"results": results, "model": MODEL_NAME, "seed": SEED}
+    wrapped = {"results": [result], "model": MODEL_NAME, "seed": SEED}
 
     for path_str in [
         str(_Path(__file__).parent / "baseline_results.json"),

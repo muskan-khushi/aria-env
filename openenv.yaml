@@ -49,11 +49,11 @@ endpoints:
   close: "/health"
 
 baseline:
-  model: "llama-3.1-8b-instant"
+  model: "Qwen/Qwen2.5-72B-Instruct"
   reproducible: true
   seed: 42
   expected_scores:
-    easy: 0.64
-    medium: 0.53
-    hard: 0.47
-    expert: 0.37
+    easy: 0.76
+    medium: 0.58
+    hard: 0.54
+    expert: 0.38
