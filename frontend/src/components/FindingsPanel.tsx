@@ -82,7 +82,7 @@ export default function FindingsPanel({ findings, onViewClause }: FindingsPanelP
                     <div className="absolute left-0 top-0 bottom-0 w-1 bg-aria-accent" />
                     <div className="flex items-center justify-between mb-2">
                        <span className="text-[10px] font-bold text-aria-accent uppercase tracking-widest flex items-center gap-1.5">
-                         🤖 Agent Reasoning
+                         ⚖️ Compliance Tribunal Log
                        </span>
                        {finding.confidence_score !== undefined && (
                          <span className="text-[10px] font-bold text-aria-textMuted">
@@ -90,9 +90,21 @@ export default function FindingsPanel({ findings, onViewClause }: FindingsPanelP
                          </span>
                        )}
                     </div>
-                    <p className="text-xs text-gray-600 font-mono leading-relaxed line-clamp-3 group-hover:line-clamp-none transition-all">
-                      {finding.agent_thinking}
-                    </p>
+                    <div className="text-xs text-gray-600 font-mono leading-relaxed line-clamp-3 group-hover:line-clamp-none transition-all flex flex-col gap-2">
+                      {finding.agent_thinking.split('\n').map((line: string, i: number) => {
+                         if (!line.trim()) return null;
+                         const parts = line.split(/(\*\*.*?\*\*)/g);
+                         return (
+                           <span key={i} className="block">
+                             {parts.map((p, j) => 
+                               p.startsWith('**') && p.endsWith('**') 
+                                 ? <strong key={j} className="text-aria-textMain">{p.slice(2, -2)}</strong> 
+                                 : p
+                             )}
+                           </span>
+                         );
+                      })}
+                    </div>
                   </div>
                 )}
 

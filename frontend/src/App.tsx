@@ -33,6 +33,8 @@ export default function App() {
   const [selectedTask, setSelectedTask] = useState('easy');
   const [activeIncident, setActiveIncident] = useState<any | null>(null);
   const [replaySteps, setReplaySteps] = useState<any[]>([]);
+  const [steerText, setSteerText] = useState("");
+  const [steerSending, setSteerSending] = useState(false);
 
   const logEndRef = useRef<HTMLDivElement>(null);
   const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({});
@@ -43,6 +45,16 @@ export default function App() {
     const socket = new WebSocket(`${WS_URL}/${FIXED_SESSION_ID}`);
     socket.onopen = () => console.log("✅ WebSocket Linked");
     
+    const speak = (text: string) => {
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel(); // kill ongoing speech
+        const msg = new SpeechSynthesisUtterance(text);
+        msg.rate = 1.0;
+        msg.pitch = 0.9;
+        window.speechSynthesis.speak(msg);
+      }
+    };
+
     socket.onmessage = (event) => {
       const data = JSON.parse(event.data);
       
@@ -62,6 +74,11 @@ export default function App() {
         if (data.action.action_type === 'request_section') {
           setActiveSection(data.action.section_id);
         }
+        
+        if (data.action.action_type === 'identify_gap') {
+           speak(`Auditor has flagged a potential gap: ${data.action.gap_type.replace(/_/g, ' ')}`);
+        }
+
         setReplaySteps(prev => [...prev, {
           step: data.step_number,
           action: data.action.action_type + (data.action.clause_ref ? ` (${data.action.clause_ref})` : ''),
@@ -74,10 +91,12 @@ export default function App() {
       }
 
       if (data.type === 'incident_alert') {
+        speak(`Critical Alert! Breach detected. ${data.message}`);
         setActiveIncident(data.incident);
       }
 
       if (data.type === 'episode_complete') {
+        speak("Audit complete. Final grade has been generated.");
         setIsDemoRunning(false);
         setIsDemoComplete(true);
         setLogs(prev => ["🏁 Episode Complete. Final Grade available in Leaderboard.", ...prev]);
@@ -110,6 +129,7 @@ export default function App() {
       setFindings([]);
       setCurrentPhase("reading");
       setCumulativeReward(0);
+      setSteerText("");
       setLogs(prev => ["Environment Ready. Waiting for Agent actions...", ...prev]);
       setShowTaskModal(false);
     } catch (err) {
@@ -125,6 +145,24 @@ export default function App() {
       const el = sectionRefs.current[sectionId];
       if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }, 100);
+  };
+
+  const handleSteer = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!steerText.trim()) return;
+    setSteerSending(true);
+    try {
+      await fetch(`${API_BASE}/aria/steer`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ session_id: FIXED_SESSION_ID, steer_text: steerText })
+      });
+      setLogs(prev => [`[USER OVERRIDE]: ${steerText}`, ...prev]);
+      setSteerText("");
+    } catch (err) {
+      console.error(err);
+    }
+    setSteerSending(false);
   };
 
   // Download button is enabled once we have findings or the episode is complete
@@ -267,12 +305,14 @@ export default function App() {
                 
                 <div className="flex flex-col gap-3 flex-1 min-h-[250px]">
                   <h2 className="text-xs font-bold text-aria-textMuted uppercase tracking-widest pl-1 flex-shrink-0">Agent Reasoning Log</h2>
-                  <div className="matte-panel p-5 bg-[#FAFAFD] overflow-y-auto flex flex-col gap-3 h-full border border-aria-border">
+                  <div className="matte-panel p-5 bg-[#FAFAFD] overflow-y-auto flex flex-col gap-3 h-full border border-aria-border mb-2">
                     {logs.map((log, index) => (
-                      <div key={index} className={`flex gap-3 items-start border-b border-aria-border pb-3 ${log.includes("CRITICAL") ? 'text-pastel-blushText font-bold' : ''}`}>
+                      <div key={index} className={`flex gap-3 items-start border-b border-aria-border pb-3 ${log.includes("CRITICAL") || log.includes("[USER OVERRIDE]") ? 'text-pastel-blushText font-bold' : ''}`}>
                         <div className="min-w-6 mt-0.5 flex-shrink-0">
                           {log.includes("CRITICAL")
                             ? <Siren className="w-4 h-4 text-pastel-blushText animate-pulse" />
+                            : log.includes("[USER OVERRIDE]") 
+                            ? <Sparkles className="w-4 h-4 text-aria-accent" />
                             : <Activity className="w-4 h-4 text-aria-accent" />
                           }
                         </div>
@@ -281,6 +321,28 @@ export default function App() {
                     ))}
                     <div ref={logEndRef} />
                   </div>
+                  
+                  {/* Copilot Interface */}
+                  <form onSubmit={handleSteer} className="flex gap-2 flex-shrink-0 relative">
+                    <div className="absolute left-3 top-1/2 -translate-y-1/2">
+                      <Sparkles className="w-4 h-4 text-aria-textMuted" />
+                    </div>
+                    <input 
+                      type="text" 
+                      value={steerText}
+                      onChange={(e) => setSteerText(e.target.value)}
+                      disabled={steerSending || !isDemoRunning}
+                      placeholder={isDemoRunning ? "Steer the agent mid-audit..." : "Launch an agent to use Copilot"}
+                      className="flex-1 bg-white border border-aria-border rounded-lg pl-9 pr-4 py-2.5 text-sm outline-none focus:border-aria-accent transition shadow-sm disabled:bg-gray-50 focus:ring-1 focus:ring-aria-accent/20"
+                    />
+                    <button 
+                      type="submit" 
+                      disabled={steerSending || !steerText.trim() || !isDemoRunning}
+                      className="bg-aria-accent text-white px-4 rounded-lg font-bold text-xs uppercase tracking-widest hover:bg-violet-600 disabled:opacity-50 transition"
+                    >
+                      {steerSending ? "..." : "Send"}
+                    </button>
+                  </form>
                 </div>
               </div>
 

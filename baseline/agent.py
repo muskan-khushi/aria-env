@@ -596,44 +596,79 @@ def _get_remediation_text(gap_type) -> str:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# ReviewerAgent — multi-agent critique layer
+# Compliance Tribunal — Multi-Agent Debate Layer
 # ══════════════════════════════════════════════════════════════════════════════
 
-class ReviewerAgent:
-    """Intercepts gap predictions and critiques them for red herrings."""
+class TribunalAgent:
+    """Orchestrates a debate between Corporate Counsel (Defense) and a Judge."""
     def __init__(self, client):
         self.client = client
 
-    def critique(self, action: ARIAAction, obs: ARIAObservation) -> dict:
+    def adjudicate(self, action: ARIAAction, obs: ARIAObservation) -> dict:
         if action.action_type != ActionType.IDENTIFY_GAP or not self.client:
-            return {"decision": "APPROVE"}
+            return {"decision": "APPROVE", "debate_log": action.agent_thinking}
             
         passage = _find_passage(action.clause_ref, obs)
         text = passage["text"] if passage else "Unknown"
         
-        system_prompt = (
-            "You are a Senior Compliance Reviewer. Your job is to catch red herrings.\n"
-            "Review the proposed gap against the actual text. "
-            "Output exactly ONE JSON object: {\"decision\": \"APPROVE|REJECT\", \"critique\": \"Why it is a hallucination/safe phrase...\"}"
+        # 1. Defense Agent Argues
+        defense_sys = (
+            "You are the company's aggressive Defense Counsel. An auditor just flagged a gap. "
+            "You must find ANY loophole, exception, or safe phrase in the clause to prove the auditor wrong. "
+            "If the gap is actually legitimate, concede gracefully. Output exactly ONE JSON object: {\"argument\": \"Your defense...\"}"
         )
-        user_prompt = f"PROPOSED GAP: {action.gap_type}\nREASONING: {action.agent_thinking}\n\nCLAUSE TEXT:\n{text}\n\nDecision?"
+        defense_user = f"PROPOSED GAP: {action.gap_type}\nAUDITOR'S REASONING: {action.agent_thinking}\n\nCLAUSE TEXT:\n{text}\n\nBuild your defense."
         
+        defense_arg = "Could not reach defense counsel."
         try:
-            resp = self.client.chat.completions.create(
-                model=MODEL_NAME,
-                temperature=0.0,
-                max_tokens=200,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt}
-                ],
+            resp_def = self.client.chat.completions.create(
+                model=MODEL_NAME, temperature=0.2, max_tokens=250,
+                messages=[{"role": "system", "content": defense_sys}, {"role": "user", "content": defense_user}],
                 response_format={"type": "json_object"}
             )
-            raw = resp.choices[0].message.content
-            return _extract_json(raw)
-        except Exception as e:
-            print(f"    [Reviewer] error: {e}")
-            return {"decision": "APPROVE"}
+            defense_arg = _extract_json(resp_def.choices[0].message.content).get("argument", defense_arg)
+        except Exception:
+            pass
+
+        # 2. Judge Agent Rules
+        judge_sys = (
+            "You are the presiding Administrative Law Judge. You have heard the Auditor's gap and the Defense's counter-argument over the clause text. "
+            "Evaluate both objectively and issue a final ruling. Output exactly ONE JSON object: "
+            "{\"decision\": \"APPROVE|REJECT\", \"ruling\": \"Your explanation of the final verdict...\"}"
+        )
+        judge_user = (
+            f"CLAUSE TEXT:\n{text}\n\n"
+            f"AUDITOR CLAIMS ({action.gap_type}): {action.agent_thinking}\n\n"
+            f"DEFENSE COUNSEL ARGUES: {defense_arg}\n\n"
+            f"Judge, what is your final verdict? (APPROVE means the gap is real, REJECT means it is a red herring)."
+        )
+        
+        decision = "APPROVE"
+        ruling = "Default approval."
+        try:
+            resp_jud = self.client.chat.completions.create(
+                model=MODEL_NAME, temperature=0.0, max_tokens=200,
+                messages=[{"role": "system", "content": judge_sys}, {"role": "user", "content": judge_user}],
+                response_format={"type": "json_object"}
+            )
+            res = _extract_json(resp_jud.choices[0].message.content)
+            decision = res.get("decision", "APPROVE")
+            ruling = res.get("ruling", ruling)
+        except Exception:
+            pass
+
+        debate_log = (
+            f"**Auditor:** {action.agent_thinking}\n\n"
+            f"**Defense Counsel:** {defense_arg}\n\n"
+            f"**Judge's Verdict:** {ruling}"
+        )
+        
+        return {
+            "decision": decision,
+            "ruling": ruling,
+            "debate_log": debate_log
+        }
+
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -724,7 +759,7 @@ def _llm_identify_gap(client, obs: ARIAObservation, fail_count_ref: list) -> Opt
     if client is None:
         return None
     prompt = _build_llm_gap_prompt(obs)
-    reviewer = ReviewerAgent(client)
+    tribunal = TribunalAgent(client)
     
     for use_json_mode in (True, False):
         try:
@@ -755,17 +790,17 @@ def _llm_identify_gap(client, obs: ARIAObservation, fail_count_ref: list) -> Opt
             
             action = _safe_action(data, obs)
             
-            # Reviewer agent intercept
+            # Tribunal intercept
             if action and action.action_type == ActionType.IDENTIFY_GAP:
-                review_resp = reviewer.critique(action, obs)
+                tribunal_res = tribunal.adjudicate(action, obs)
                 
-                if review_resp.get("decision") == "REJECT":
-                    print(f"    [Reviewer] Rejected gap {action.gap_type} — {review_resp.get('critique')}")
+                if tribunal_res.get("decision") == "REJECT":
+                    print(f"    [Tribunal] Rejected gap {action.gap_type} — {tribunal_res.get('ruling')}")
                     # Refinement Loop
                     kwargs["messages"].append({"role": "assistant", "content": raw})
                     kwargs["messages"].append({
                         "role": "user", 
-                        "content": f"Reviewer Agent rejected your gap with this critique: {review_resp.get('critique')}\n"
+                        "content": f"The Compliance Tribunal rejected your gap. JUDGE'S VERDICT: {tribunal_res.get('ruling')}\n"
                                    f"Please identify a different valid gap, or if none exist, return submit_final_report."
                     })
                     refine_resp = _call_llm_with_retry(client, kwargs, use_json_mode)
@@ -776,19 +811,25 @@ def _llm_identify_gap(client, obs: ARIAObservation, fail_count_ref: list) -> Opt
                         if data2.get("action_type") == "submit_final_report":
                              return ARIAAction(
                                  action_type=ActionType.SUBMIT_FINAL_REPORT,
-                                 agent_thinking="Reviewer rejected, falling back to report submit.",
+                                 agent_thinking="Tribunal rejected, falling back to report submit.",
                                  confidence_score=1.0
                              )
                         refined_action = _safe_action(data2, obs)
                         if refined_action:
                             action = refined_action
-                            action.agent_thinking = data2.get("agent_thinking", "Refined after critique")
+                            # For refined action, we shouldn't run a deep debate again to save tokens, just append it.
+                            action.agent_thinking = f"{tribunal_res.get('debate_log')}\n\n**Auditor (Refined):** {data2.get('agent_thinking')}"
                             action.confidence_score = data2.get("confidence_score")
                             return action
+                else:
+                     # Approved by Tribunal! Append the full debate log to the reasoning trace.
+                     action.agent_thinking = tribunal_res.get("debate_log")
             
             if action:
-                action.agent_thinking = data.get("agent_thinking")
-                action.confidence_score = data.get("confidence_score")
+                 # In case it's a non-GAP action, just use regular thinking
+                 if getattr(action, "agent_thinking", None) is None:
+                     action.agent_thinking = data.get("agent_thinking")
+                 action.confidence_score = data.get("confidence_score")
             return action
         except Exception as exc:
             if use_json_mode and ("json" in str(exc).lower() or "response_format" in str(exc).lower()):

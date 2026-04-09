@@ -20,8 +20,13 @@ class UploadPayload(BaseModel):
     filename: str
     content: str
 
+class SteerPayload(BaseModel):
+    session_id: str
+    steer_text: str
+
 router = APIRouter()
 BASELINE_CACHE = Path(__file__).parent.parent / "baseline" / "baseline_results.json"
+SESSION_STEERING = {}
 
 # ─── Internal Background Agent Loop ──────────────────────────────────────────
 
@@ -55,6 +60,11 @@ async def run_internal_audit(task_id: str, session_id: str):
             # 3. Step Loop
             while not done:
                 obs = ARIAObservation(**obs_data)
+                
+                steer = SESSION_STEERING.get(session_id)
+                if steer:
+                    obs.task_description += f"\n\nIMPORTANT USER OVERRIDE: {steer}"
+                    
                 action = agent.act(obs)
                 
                 # Self-ping /step to trigger the standard logic + WS broadcast
@@ -94,6 +104,12 @@ async def upload_custom_audit(payload: UploadPayload):
         return {"message": "Custom task created", "task_id": task_data["task_id"]}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/steer")
+async def steer_agent(payload: SteerPayload):
+    """Overrides the agent's focus dynamically mid-run."""
+    SESSION_STEERING[payload.session_id] = payload.steer_text
+    return {"message": "Agent steered."}
 
 # ─── Existing Routes (Untouched) ─────────────────────────────────────────────
 
