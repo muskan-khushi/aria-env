@@ -69,9 +69,9 @@ Watch an agent conduct a real-time GDPR audit end-to-end. The dashboard surfaces
 
 ## Baseline Results
 
-All scores are fully reproducible from `inference.py` using `seed=42`. Results reflect the performance of **Qwen 2.5 72B Instruct** via Hugging Face Inference Endpoints, evaluated against the reference targets.
+All scores are fully reproducible from `inference.py` using `seed=42`. Results reflect the performance of **Qwen 2.5 7B Instruct** via Hugging Face Inference Endpoints, evaluated against the reference targets.
 
-| Task | Difficulty | Focus | **Qwen 2.5 72B (MultiPass)** | **GPT-4o Target** | Random Floor |
+| Task | Difficulty | Focus | **Qwen 2.5 7B (MultiPass)** | **GPT-4o Target** | Random Floor |
 |:---|:---:|:---|:---:|:---:|:---:|
 | **Easy** | 🟢 | Single-document GDPR consistency | **0.76** | 0.94 | 0.15 |
 | **Medium** | 🟡 | Cross-document DPA + Policy alignment | **0.58** | 0.71 | 0.09 |
@@ -79,9 +79,9 @@ All scores are fully reproducible from `inference.py` using `seed=42`. Results r
 | **Expert** | 🔴 | Live breach response mid-audit | **0.38** | 0.33 | 0.02 |
 | | | **Average** | **0.56** | 0.63 | 0.08 |
 
-### Analysis: Qwen 2.5 72B Performance
+### Analysis: Qwen 2.5 7B Performance
 
-Results from the evaluation using Qwen 2.5 72B Instruct via Hugging Face API:
+Results from the evaluation using Qwen 2.5 7B Instruct via Hugging Face API:
 
 **Robust Performance Across Tiers.** The selected model excels, consistently nearing GPT-4o reference levels on the Hard task. Its ability to holistically evaluate the document state translates into robust, actionable compliance reports.
 
@@ -89,7 +89,7 @@ Results from the evaluation using Qwen 2.5 72B Instruct via Hugging Face API:
 
 **Stable API Operations.** Configured with the official `HF_TOKEN` environment variable, the inference baseline avoids unsupported hardcoded keys. It reads dynamically to ensure seamless evaluation by judges.
 
-> *"Transitioning to Qwen 2.5 72B and Hugging Face tokens ensures a highly stable execution layout that minimizes rate-limits and scales elegantly."*
+> *"Transitioning to Qwen 2.5 7B and Hugging Face tokens ensures a highly stable execution layout that minimizes rate-limits and scales elegantly."*
 
 ---
 
@@ -233,9 +233,9 @@ The terminal grader computes a final score in `[0.0, 1.0]` as a weighted sum of 
 # 1. Supply your HuggingFace API key via the HF_TOKEN environment variable (do not hardcode).
 export HF_TOKEN="your_huggingface_token"
 
-# 2. Select the Task and Model (Qwen/Qwen2.5-72B-Instruct)
+# 2. Select the Task and Model (Qwen/Qwen2.5-7B-Instruct)
 export TASK_NAME="hard"
-export MODEL_NAME="Qwen/Qwen2.5-72B-Instruct"
+export MODEL_NAME="Qwen/Qwen2.5-7B-Instruct"
 export API_BASE_URL="https://api-inference.huggingface.co/v1/"
 
 # 3. Target the environment
@@ -405,7 +405,7 @@ Version 3 improvements include: robust JSON extraction from any LLM response for
 | Variable | Required | Default | Description |
 |:---|:---:|:---|:---|
 | `HF_TOKEN` | ✅ | — | HuggingFace API Token (Must not be hardcoded in evaluation) |
-| `MODEL_NAME` | ✅ | `Qwen/Qwen2.5-72B-Instruct` | Model identifier on HF |
+| `MODEL_NAME` | ✅ | `Qwen/Qwen2.5-7B-Instruct` | Model identifier on HF |
 | `API_BASE_URL` | ✅ | `https://api-inference.huggingface.co/v1/` | HF endpoint URL (OpenAI-compatible) |
 
 ---

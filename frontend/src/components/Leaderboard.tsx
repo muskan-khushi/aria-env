@@ -8,7 +8,7 @@ import {
 
 const fallbackLeaderboard = [
   { rank: 1, agent: "GPT-4o-mini (Multi)", easy: 0.94, medium: 0.71, hard: 0.52, expert: 0.33, avg: 0.63, status: "baseline", precision: 0.88, recall: 0.75 },
-  { rank: 2, agent: "Qwen 2.5 72B (MultiPass)", easy: 0.76, medium: 0.58, hard: 0.54, expert: 0.38, avg: 0.56, status: "baseline", precision: 0.95, recall: 0.78 },
+  { rank: 2, agent: "Qwen 2.5 7B (MultiPass)", easy: 0.76, medium: 0.58, hard: 0.54, expert: 0.38, avg: 0.56, status: "baseline", precision: 0.95, recall: 0.78 },
   { rank: 3, agent: "GPT-4o-mini (Single)", easy: 0.87, medium: 0.63, hard: 0.44, expert: 0.28, avg: 0.56, status: "baseline", precision: 0.81, recall: 0.62 },
   { rank: 4, agent: "GPT-3.5-turbo", easy: 0.72, medium: 0.48, hard: 0.31, expert: 0.17, avg: 0.42, status: "baseline", precision: 0.65, recall: 0.45 },
   { rank: 5, agent: "Random Agent", easy: 0.15, medium: 0.09, hard: 0.04, expert: 0.02, avg: 0.08, status: "control", precision: 0.12, recall: 0.15 },
@@ -40,7 +40,7 @@ function DifficultySpreadChart({ data }: { data: typeof fallbackLeaderboard }) {
   const chartData = data.map(d => ({
     name: d.agent.split('(')[0].trim()
       .replace('GPT-', '')
-      .replace('Qwen 2.5 72B', 'Qwen 72B')
+      .replace('Qwen 2.5 7B', 'Qwen 7B')
       .replace(/Qwen.*/, 'Qwen'),
     Easy: d.easy,
     Medium: d.medium,

@@ -23,7 +23,7 @@ def run_live_demo(task_name="easy"):
     # 1. Initialize Agent (Provider Agnostic for HuggingFace/OpenAI)
     api_key = os.environ.get("HF_TOKEN") or os.environ.get("OPENAI_API_KEY")
     base_url = os.environ.get("API_BASE_URL", "https://api-inference.huggingface.co/v1/")
-    model_name = os.environ.get("MODEL_NAME", "Qwen/Qwen2.5-72B-Instruct")
+    model_name = os.environ.get("MODEL_NAME", "Qwen/Qwen2.5-7B-Instruct")
     
     if not api_key:
         print("⚠️ No API Key found. Agent will run in fallback heuristic mode.")

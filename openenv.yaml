@@ -49,7 +49,7 @@ endpoints:
   close: "/health"
 
 baseline:
-  model: "Qwen/Qwen2.5-72B-Instruct"
+  model: "Qwen/Qwen2.5-7B-Instruct"
   reproducible: true
   seed: 42
   expected_scores:

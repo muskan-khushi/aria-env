@@ -8,7 +8,7 @@ SETUP:
   2. Set your .env file:
        HF_TOKEN=your_token_here
        API_BASE_URL=https://api-inference.huggingface.co/v1/
-       MODEL_NAME=Qwen/Qwen2.5-72B-Instruct
+       MODEL_NAME=Qwen/Qwen2.5-7B-Instruct
   3. Run: python baseline/run_baseline.py
 """
 from __future__ import annotations
@@ -49,7 +49,7 @@ TASKS = ["easy", "medium", "hard", "expert"]
 SEED = 42
 
 # Dynamically fetch the model name
-MODEL_NAME = os.environ.get("MODEL_NAME", "Qwen/Qwen2.5-72B-Instruct")
+MODEL_NAME = os.environ.get("MODEL_NAME", "Qwen/Qwen2.5-7B-Instruct")
 
 # Override agent.py's MODEL_NAME to match .env config
 import baseline.agent as _agent_mod

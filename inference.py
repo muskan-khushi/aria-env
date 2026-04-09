@@ -38,7 +38,7 @@ from openai import OpenAI
 # ── Env / model config ───────────────────────────────────────────────────────
 API_KEY = os.getenv("HF_TOKEN")
 API_BASE_URL = os.getenv("API_BASE_URL", "https://api-inference.huggingface.co/v1/")
-MODEL_NAME   = os.getenv("MODEL_NAME",   "Qwen/Qwen2.5-72B-Instruct")
+MODEL_NAME   = os.getenv("MODEL_NAME",   "Qwen/Qwen2.5-7B-Instruct")
 BENCHMARK    = "aria-compliance-v1"
 TASK_NAME    = os.getenv("TASK_NAME", "hard")  # Defaulting to 1 specific task
 MAX_STEPS    = 50   # hard cap per episode (well within 20-min budget)

@@ -38,7 +38,7 @@ from aria.models import (
 from tenacity import retry, wait_exponential, stop_after_attempt, retry_if_exception_type
 
 # ── Config ───────────────────────────────────────────────────────────────────
-MODEL_NAME   = os.environ.get("MODEL_NAME", "Qwen/Qwen2.5-72B-Instruct")
+MODEL_NAME   = os.environ.get("MODEL_NAME", "Qwen/Qwen2.5-7B-Instruct")
 _MAX_TOKENS  = 384    # gap JSON ~40 tokens; 384 is generous (was 256)
 _TEMPERATURE = 0.0
 
