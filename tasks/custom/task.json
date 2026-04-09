@@ -1,0 +1,31 @@
+{
+  "task_id": "custom_55917578",
+  "title": "Custom Audit: Company_Policy.txt",
+  "difficulty": "medium",
+  "description": "Custom audit generated from uploaded text.",
+  "max_steps": 13,
+  "frameworks_in_scope": [
+    "GDPR",
+    "HIPAA",
+    "CCPA",
+    "SOC2"
+  ],
+  "documents": [
+    {
+      "doc_id": "55917578",
+      "title": "Company_Policy.txt",
+      "sections": [
+        {
+          "section_id": "s1",
+          "title": "Section 1",
+          "content": "hykajccdlld crimeee",
+          "subsections": []
+        }
+      ]
+    }
+  ],
+  "ground_truth": {
+    "gaps": [],
+    "conflicts": []
+  }
+}

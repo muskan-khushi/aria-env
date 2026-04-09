@@ -60,7 +60,7 @@ General-purpose LLMs and RAG pipelines fall short of the actual audit workflow. 
 
 </div>
 
-Watch an agent conduct a real-time GDPR audit end-to-end. The dashboard surfaces document sections as the agent reads them, renders findings with framework-specific badges, plots a live reward curve (per-step bars overlaid with a cumulative line), and streams the agent's full reasoning trace. In **Expert mode**, a red **⚠ BREACH ALERT** fires mid-audit and initiates a live countdown to the regulatory notification deadline.
+Watch an agent conduct a real-time GDPR audit end-to-end. The dashboard surfaces document sections as the agent reads them, renders findings with framework-specific badges, plots a live reward curve with Audit Phase tracking, and streams the agent's full Reviewer-backed reasoning trace. In **Expert mode**, a red **⚠ BREACH ALERT** fires mid-audit and initiates a live countdown to the regulatory notification deadline.
 
 > [!IMPORTANT]
 > Visit the Space URL once to wake the instance before running the evaluator.
@@ -107,21 +107,25 @@ Identifying a gap earns **zero reward** until the agent invokes `cite_evidence`.
 
 The corpus includes **Compliant Decoys** — clauses that employ violation-adjacent vocabulary but are, upon careful reading, fully lawful. For example: a clause referencing `"data sharing"` followed by `"only for strictly necessary billing purposes (a GDPR exception)"` must **not** be flagged. Agents that maximise recall by flagging indiscriminately receive catastrophic score penalties (see [Anti-Gaming Mechanics](#anti-gaming-mechanics)).
 
-### 4 · Multi-Tiered Evaluation Suite
+### 4 · Multi-Tiered Evaluation Suite & Custom Audits
 
-ARIA replaces unpredictable procedural generation with a curated library of high-fidelity compliance scenarios, each precision-engineered to stress-test a distinct dimension of agentic legal reasoning.
+ARIA replaces unpredictable procedural generation with a curated library of high-fidelity compliance scenarios, ranging from Easy configurations up to an **On-the-Fly Custom Upload Tier** that parses raw company policies dynamically into structured task topologies via `tenacity`-backed generator engines.
 
-**Verified Ground Truth.** Every scenario — Easy through Expert — ships with a hand-verified gold-standard gap list. This ensures the 0.47 baseline score reflects a mathematically precise measure of reasoning quality, not an artefact of generative noise.
+**Verified Ground Truth.** Every scenario — Easy through Expert — ships with a hand-verified gold-standard gap list. This ensures the baseline score reflects a mathematically precise measure of reasoning quality, not an artefact of generative noise.
 
 **Tiered Complexity.** Easy and Medium tiers focus on direct regulatory citation and clause-level pattern matching across GDPR and CCPA. Hard and Expert tiers introduce genuine cross-framework contradictions and live adversarial events — such as a HIPAA breach firing mid-audit — that demand real-time re-prioritisation of the agent's reasoning trajectory.
 
-**Deterministic Reproducibility.** A fixed-task architecture guarantees that every model evaluated — Llama, Nemotron, GPT, or otherwise — encounters precisely the same legal corpus, the same red herrings, and the same ground-truth gaps. Any researcher running the `seed=42` baseline will produce results that are directly and fairly comparable.
+**Deterministic Reproducibility.** A fixed-task architecture guarantees that every model evaluated encounters precisely the same legal corpus, red herrings, and ground-truth gaps. Any researcher running the `seed=42` baseline will produce results that are directly and fairly comparable.
 
-**Extensible JSON Schema.** The environment is grounded in a strictly typed task manifest. New regulatory frameworks — such as the EU AI Act — or custom company profiles can be injected directly into the `tasks/` directory without modifying the core RL engine.
+### 5 · Expert Tier: Live Incident Simulation & Temporal Decay
 
-### 5 · Expert Tier: Live Incident Simulation
+At step 25 of an Expert episode, a data breach event fires. The agent's observation space is augmented with breach telemetry. The agent must simultaneously advance the audit and execute a full regulatory incident response protocol — Containment → Documentation → Supervisory Notification → Data Subject Notification — under live deadline pressure. Failing to meet the 72-hour GDPR notification window incurs a **−0.25 penalty per step**, and the environment globally applies strict temporal decay logic (via `environment.py`) to punish dawdling.
 
-At step 25 of an Expert episode, a data breach event fires. The agent's observation space is augmented with breach telemetry. The agent must simultaneously advance the audit and execute a full regulatory incident response protocol — Containment → Documentation → Supervisory Notification → Data Subject Notification — under live deadline pressure. Failing to meet the 72-hour GDPR notification window incurs a **−0.25 penalty per step**.
+### 6 · Enterprise Explainability & The Reviewer Agent
+
+A major addition to the baseline framework is the multi-agent **ReviewerAgent** architecture. Standard RL outputs obscure model thought processes. ARIA pipes pure visibility:
+1. **Self-Reflective Critique (Backend):** Before any compliance gap is submitted to the active environment, the primary Auditor's JSON payload is intercepted by the `ReviewerAgent`. This secondary node challenges the gap against known red-herrings, and if invalid, forces a 0-step automated refinement loop to extract a better answer.
+2. **Glassbox UI (Frontend):** Pydantic v2 schemas now enforce an `agent_thinking` output block containing model-level confidence markers. The Real-time dashboard renders this inside the **Audit Findings Panel**, exposing exactly why each gap was flagged (and what the Reviewer evaluated).
 
 ---
 
