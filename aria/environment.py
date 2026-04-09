@@ -126,7 +126,18 @@ class ARIAEnv:
 
         # Compute reward
         reward_obj = self._reward_engine.compute(action, obs, gt)
-        total_reward = reward_obj.reward + phase_penalty
+        
+        # Phase penalty & Temporal Decay
+        phase_penalty = self._reward_engine.check_phase_violation(action, obs.phase)
+        temporal_decay = -0.001 * obs.steps_taken  # Small penalty increasing over time
+        
+        if getattr(obs, "active_incident", None):
+             # Steeper decay during active incidents if not contained
+             completed = getattr(obs.active_incident, "completed_responses", [])
+             if "contain_breach" not in [getattr(c, "value", str(c)) for c in completed]:
+                 temporal_decay -= 0.01
+
+        total_reward = reward_obj.reward + phase_penalty + temporal_decay
 
         # Apply state transitions
         self._apply_action(action, obs, reward_obj)
@@ -205,6 +216,8 @@ class ARIAEnv:
                     description=action.description or "",
                     status=FindingStatus.PENDING,
                     framework=action.target_framework,
+                    agent_thinking=action.agent_thinking,
+                    confidence_score=action.confidence_score,
                 )
                 obs.active_findings.append(finding)
 

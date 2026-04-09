@@ -25,6 +25,8 @@ export default function App() {
   const [chartData, setChartData] = useState([{ step: 0, reward: 0, cumulative: 0 }]);
   const [findings, setFindings] = useState<any[]>([]);
   const [currentDoc, setCurrentDoc] = useState<any>(null);
+  const [currentPhase, setCurrentPhase] = useState<string>("reading");
+  const [cumulativeReward, setCumulativeReward] = useState<number>(0);
   
   const [showTaskModal, setShowTaskModal] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
@@ -54,6 +56,9 @@ export default function App() {
           cumulative: obs.cumulative_reward 
         }]);
         setFindings(obs.active_findings);
+        setCurrentPhase(obs.phase || "reading");
+        setCumulativeReward(obs.cumulative_reward || 0);
+
         if (data.action.action_type === 'request_section') {
           setActiveSection(data.action.section_id);
         }
@@ -103,6 +108,8 @@ export default function App() {
       setReplaySteps([]);
       setChartData([{ step: 0, reward: 0, cumulative: 0 }]);
       setFindings([]);
+      setCurrentPhase("reading");
+      setCumulativeReward(0);
       setLogs(prev => ["Environment Ready. Waiting for Agent actions...", ...prev]);
       setShowTaskModal(false);
     } catch (err) {
@@ -234,13 +241,33 @@ export default function App() {
 
               {/* Center: Chart + Log */}
               <div className="col-span-4 flex flex-col gap-4 min-h-0">
-                <div className="flex flex-col gap-3 flex-shrink-0">
+                <div className="grid grid-cols-2 gap-4 flex-shrink-0">
+                  <div className="matte-panel p-4 bg-white flex flex-col justify-center items-center gap-1 border border-aria-border">
+                    <span className="text-[10px] font-bold text-aria-textMuted uppercase tracking-widest">Cumulative Reward</span>
+                    <span className={`text-3xl font-light tracking-tighter ${cumulativeReward >= 0 ? 'text-pastel-sageText' : 'text-pastel-blushText'}`}>
+                      {cumulativeReward >= 0 ? '+' : ''}{cumulativeReward.toFixed(2)}
+                    </span>
+                  </div>
+                  <div className="matte-panel p-4 bg-white flex flex-col gap-2 justify-center border border-aria-border">
+                    <span className="text-[10px] font-bold text-aria-textMuted uppercase tracking-widest text-center">Audit Phase</span>
+                    <div className="flex justify-between items-center px-2">
+                       <span className={`text-xs font-bold transition-all ${currentPhase === 'reading' ? 'text-aria-accent scale-110' : 'text-gray-300'}`}>01 Read</span>
+                       <div className="flex-1 h-0.5 max-w-[20px] mx-2 bg-gray-200" />
+                       <span className={`text-xs font-bold transition-all ${currentPhase === 'auditing' ? 'text-aria-accent scale-110' : 'text-gray-300'}`}>02 Audit</span>
+                       <div className="flex-1 h-0.5 max-w-[20px] mx-2 bg-gray-200" />
+                       <span className={`text-xs font-bold transition-all ${currentPhase === 'remediating' || currentPhase === 'complete' ? 'text-aria-accent scale-110' : 'text-gray-300'}`}>03 Fix</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-3 flex-shrink-0 overflow-visible z-10 relative bg-white matte-panel p-4 border border-aria-border">
                   <h2 className="text-xs font-bold text-aria-textMuted uppercase tracking-widest pl-1">Performance Curve</h2>
                   <RewardChart data={chartData} />
                 </div>
-                <div className="flex flex-col gap-3 flex-1 min-h-0">
+                
+                <div className="flex flex-col gap-3 flex-1 min-h-[250px]">
                   <h2 className="text-xs font-bold text-aria-textMuted uppercase tracking-widest pl-1 flex-shrink-0">Agent Reasoning Log</h2>
-                  <div className="matte-panel p-5 bg-[#FAFAFD] overflow-y-auto flex flex-col gap-3" style={{ height: '360px' }}>
+                  <div className="matte-panel p-5 bg-[#FAFAFD] overflow-y-auto flex flex-col gap-3 h-full border border-aria-border">
                     {logs.map((log, index) => (
                       <div key={index} className={`flex gap-3 items-start border-b border-aria-border pb-3 ${log.includes("CRITICAL") ? 'text-pastel-blushText font-bold' : ''}`}>
                         <div className="min-w-6 mt-0.5 flex-shrink-0">

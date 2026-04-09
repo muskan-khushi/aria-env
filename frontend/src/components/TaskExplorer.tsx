@@ -8,6 +8,7 @@ const taskTiers = [
   { id: 'medium', name: 'Cross-Doc Review', icon: Layers, desc: 'Multi-document relational reasoning with contradictions.', frameworks: 'GDPR, CCPA', steps: 25 },
   { id: 'hard', name: 'Multi-Framework Conflict', icon: Swords, desc: 'Adversarial clauses and cross-framework conflicts.', frameworks: 'GDPR, HIPAA, CCPA', steps: 40 },
   { id: 'expert', name: 'Incident Response Suite', icon: Siren, desc: 'Dual-task: Live data breach mid-audit.', frameworks: 'All Frameworks', steps: 60 },
+  { id: 'custom', name: 'Company Upload Mode', icon: Layers, desc: 'Upload your own corporate documents for live auditing.', frameworks: 'Custom Target', steps: 40 },
 ];
 
 interface TaskExplorerProps {
@@ -20,6 +21,9 @@ interface TaskExplorerProps {
 
 export default function TaskExplorer({ show, onClose, onLaunch, selectedTask, setSelectedTask }: TaskExplorerProps) {
   const [seed, setSeed] = useState<number>(42);
+  const [customFilename, setCustomFilename] = useState("Company_Policy.txt");
+  const [customContent, setCustomContent] = useState("");
+  const [isUploading, setIsUploading] = useState(false);
   
   // 2. Destructure the startDemo function and loading state
   const { startDemo, isLoading } = useARIAEnv();
@@ -28,6 +32,22 @@ export default function TaskExplorer({ show, onClose, onLaunch, selectedTask, se
 
   // 3. New handler to trigger the server-side audit
   const handleLaunchClick = async () => {
+    if (selectedTask === 'custom') {
+      setIsUploading(true);
+      try {
+        const API_BASE = window.location.hostname === "localhost" ? "http://localhost:7860" : "";
+        await fetch(`${API_BASE}/aria/upload/custom`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ filename: customFilename, content: customContent })
+        });
+      } catch (err) {
+        console.error("Upload failed", err);
+      } finally {
+        setIsUploading(false);
+      }
+    }
+
     // This tells the FastAPI server to run the agent in the background
     await startDemo(selectedTask); 
     
@@ -93,6 +113,30 @@ export default function TaskExplorer({ show, onClose, onLaunch, selectedTask, se
                     />
                   </div>
                 )}
+
+                {isSelected && tier.id === 'custom' && (
+                  <div className="p-4 mt-2 bg-aria-accentLight/30 border border-aria-accent/20 rounded-xl flex flex-col gap-3 animate-in slide-in-from-top-2">
+                    <div className="flex flex-col gap-1">
+                      <label className="text-xs font-semibold text-aria-textMain">Document Title</label>
+                      <input 
+                        type="text" 
+                        value={customFilename}
+                        onChange={(e) => setCustomFilename(e.target.value)}
+                        className="w-full px-3 py-1.5 rounded-lg border border-aria-border font-mono text-sm focus:outline-none focus:border-aria-accent focus:ring-1 focus:ring-aria-accent"
+                        placeholder="E.g., Privacy_Policy.txt"
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <label className="text-xs font-semibold text-aria-textMain">Paste Document Content</label>
+                      <textarea 
+                        value={customContent}
+                        onChange={(e) => setCustomContent(e.target.value)}
+                        className="w-full px-3 py-2 rounded-lg border border-aria-border font-mono text-sm h-32 resize-none focus:outline-none focus:border-aria-accent focus:ring-1 focus:ring-aria-accent"
+                        placeholder="Paste your company policies, terms of service, or BAA drafts here..."
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
             )
           })}
@@ -103,11 +147,11 @@ export default function TaskExplorer({ show, onClose, onLaunch, selectedTask, se
           
           {/* 4. Update the Load Button to call handleLaunchClick and show loading state */}
           <button 
-            disabled={isLoading}
+            disabled={isLoading || isUploading || (selectedTask === 'custom' && !customContent.trim())}
             onClick={handleLaunchClick} 
-            className={`px-6 py-2.5 rounded-lg font-semibold text-white transition shadow-md flex items-center gap-2 ${isLoading ? 'bg-gray-400 cursor-not-allowed' : 'bg-aria-textMain hover:bg-aria-accent'}`}
+            className={`px-6 py-2.5 rounded-lg font-semibold text-white transition shadow-md flex items-center gap-2 ${(isLoading || isUploading) ? 'bg-gray-400 cursor-not-allowed' : 'bg-aria-textMain hover:bg-aria-accent'}`}
           >
-            {isLoading ? (
+            {(isLoading || isUploading) ? (
               <>Initializing Agent...</>
             ) : (
               <>

@@ -35,6 +35,7 @@ from aria.models import (
     ARIAObservation, ARIAAction, ActionType,
     GapType, Severity, Framework,
 )
+from tenacity import retry, wait_exponential, stop_after_attempt, retry_if_exception_type
 
 # ── Config ───────────────────────────────────────────────────────────────────
 MODEL_NAME   = os.environ.get("MODEL_NAME", "Qwen/Qwen2.5-72B-Instruct")
@@ -595,6 +596,47 @@ def _get_remediation_text(gap_type) -> str:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
+# ReviewerAgent — multi-agent critique layer
+# ══════════════════════════════════════════════════════════════════════════════
+
+class ReviewerAgent:
+    """Intercepts gap predictions and critiques them for red herrings."""
+    def __init__(self, client):
+        self.client = client
+
+    def critique(self, action: ARIAAction, obs: ARIAObservation) -> dict:
+        if action.action_type != ActionType.IDENTIFY_GAP or not self.client:
+            return {"decision": "APPROVE"}
+            
+        passage = _find_passage(action.clause_ref, obs)
+        text = passage["text"] if passage else "Unknown"
+        
+        system_prompt = (
+            "You are a Senior Compliance Reviewer. Your job is to catch red herrings.\n"
+            "Review the proposed gap against the actual text. "
+            "Output exactly ONE JSON object: {\"decision\": \"APPROVE|REJECT\", \"critique\": \"Why it is a hallucination/safe phrase...\"}"
+        )
+        user_prompt = f"PROPOSED GAP: {action.gap_type}\nREASONING: {action.agent_thinking}\n\nCLAUSE TEXT:\n{text}\n\nDecision?"
+        
+        try:
+            resp = self.client.chat.completions.create(
+                model=MODEL_NAME,
+                temperature=0.0,
+                max_tokens=200,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt}
+                ],
+                response_format={"type": "json_object"}
+            )
+            raw = resp.choices[0].message.content
+            return _extract_json(raw)
+        except Exception as e:
+            print(f"    [Reviewer] error: {e}")
+            return {"decision": "APPROVE"}
+
+
+# ══════════════════════════════════════════════════════════════════════════════
 # Minimal LLM prompt — v5: increased context + red herring warnings
 # ══════════════════════════════════════════════════════════════════════════════
 
@@ -617,9 +659,17 @@ VALID gap_type values — use EXACTLY one, nothing else:
   - Breach: internal SLA timelines (e.g. "CISO within 1 hour") are NOT regulatory breach notification
 
 Respond with EXACTLY ONE JSON object (no markdown, no explanation):
-  {"action_type":"identify_gap","clause_ref":"<doc.section>","gap_type":"<valid_type>","severity":"<high|medium|low>","description":"<specific article violated>"}
+  {
+    "agent_thinking": "<your step-by-step reasoning>",
+    "confidence_score": <float 0.0-1.0>,
+    "action_type": "identify_gap",
+    "clause_ref": "<doc.section>",
+    "gap_type": "<valid_type>",
+    "severity": "<high|medium|low>",
+    "description": "<specific article violated>"
+  }
 or if no new genuine gap exists:
-  {"action_type":"submit_final_report"}"""
+  {"agent_thinking": "<why no gaps exist>", "confidence_score": 1.0, "action_type":"submit_final_report"}"""
 
 
 def _build_llm_gap_prompt(obs: ARIAObservation) -> str:
@@ -654,16 +704,28 @@ def _build_llm_gap_prompt(obs: ARIAObservation) -> str:
     )
 
 
+@retry(
+    wait=wait_exponential(multiplier=1, min=2, max=10),
+    stop=stop_after_attempt(4),
+    reraise=False
+)
+def _call_llm_with_retry(client, kwargs, use_json_mode):
+    if use_json_mode:
+        kwargs["response_format"] = {"type": "json_object"}
+    response = client.chat.completions.create(**kwargs)
+    return response
+
 def _llm_identify_gap(client, obs: ARIAObservation, fail_count_ref: list) -> Optional[ARIAAction]:
     """
-    Single stateless LLM call.
+    Single stateless LLM call with Tenacity retries and Reviewer Agent refinement.
     fail_count_ref is a 1-element list used as a mutable int reference.
     Returns None if LLM unavailable or failed (caller should use heuristic).
-    Failure threshold raised to 3 (was 2 in v4).
     """
     if client is None:
         return None
     prompt = _build_llm_gap_prompt(obs)
+    reviewer = ReviewerAgent(client)
+    
     for use_json_mode in (True, False):
         try:
             kwargs = dict(
@@ -675,25 +737,64 @@ def _llm_identify_gap(client, obs: ARIAObservation, fail_count_ref: list) -> Opt
                     {"role": "user",   "content": prompt},
                 ],
             )
-            if use_json_mode:
-                kwargs["response_format"] = {"type": "json_object"}
-            response = client.chat.completions.create(**kwargs)
+            response = _call_llm_with_retry(client, kwargs, use_json_mode)
+            if not response:
+                continue
+                
             raw  = response.choices[0].message.content
             data = _extract_json(raw)
             fail_count_ref[0] = 0
-            if data.get("action_type") == "submit_final_report":
-                return ARIAAction(action_type=ActionType.SUBMIT_FINAL_REPORT)
-            return _safe_action(data, obs)
+            
+            action_type = data.get("action_type")
+            if action_type == "submit_final_report":
+                return ARIAAction(
+                    action_type=ActionType.SUBMIT_FINAL_REPORT,
+                    agent_thinking=data.get("agent_thinking"),
+                    confidence_score=data.get("confidence_score")
+                )
+            
+            action = _safe_action(data, obs)
+            
+            # Reviewer agent intercept
+            if action and action.action_type == ActionType.IDENTIFY_GAP:
+                review_resp = reviewer.critique(action, obs)
+                
+                if review_resp.get("decision") == "REJECT":
+                    print(f"    [Reviewer] Rejected gap {action.gap_type} — {review_resp.get('critique')}")
+                    # Refinement Loop
+                    kwargs["messages"].append({"role": "assistant", "content": raw})
+                    kwargs["messages"].append({
+                        "role": "user", 
+                        "content": f"Reviewer Agent rejected your gap with this critique: {review_resp.get('critique')}\n"
+                                   f"Please identify a different valid gap, or if none exist, return submit_final_report."
+                    })
+                    refine_resp = _call_llm_with_retry(client, kwargs, use_json_mode)
+                    if refine_resp:
+                        raw2 = refine_resp.choices[0].message.content
+                        data2 = _extract_json(raw2)
+                        
+                        if data2.get("action_type") == "submit_final_report":
+                             return ARIAAction(
+                                 action_type=ActionType.SUBMIT_FINAL_REPORT,
+                                 agent_thinking="Reviewer rejected, falling back to report submit.",
+                                 confidence_score=1.0
+                             )
+                        refined_action = _safe_action(data2, obs)
+                        if refined_action:
+                            action = refined_action
+                            action.agent_thinking = data2.get("agent_thinking", "Refined after critique")
+                            action.confidence_score = data2.get("confidence_score")
+                            return action
+            
+            if action:
+                action.agent_thinking = data.get("agent_thinking")
+                action.confidence_score = data.get("confidence_score")
+            return action
         except Exception as exc:
             if use_json_mode and ("json" in str(exc).lower() or "response_format" in str(exc).lower()):
                 continue  # retry without json_mode
             fail_count_ref[0] += 1
-            is_rate_limit = "429" in str(exc) or "rate limit" in str(exc).lower()
             print(f"    [LLM] error ({fail_count_ref[0]}): {exc}", flush=True)
-            if is_rate_limit:
-                sleep_secs = min(5 * fail_count_ref[0], 20)
-                print(f"    [LLM] rate limited — sleeping {sleep_secs}s", flush=True)
-                time.sleep(sleep_secs)
             return None
     return None
 

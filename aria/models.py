@@ -106,6 +106,8 @@ class Finding(BaseModel):
     description: str
     status: FindingStatus = FindingStatus.PENDING
     framework: Framework | None = None
+    agent_thinking: str | None = None
+    confidence_score: float | None = None
 
 
 class Remediation(BaseModel):
@@ -178,6 +180,10 @@ class ARIAAction(BaseModel):
 
     # flag_false_positive
     retract_finding_id: str | None = None
+
+    # explainability upgrades
+    agent_thinking: str | None = None
+    confidence_score: float | None = None
 
 
 # ─── Observation Model ────────────────────────────────────────────────────────

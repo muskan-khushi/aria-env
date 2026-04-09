@@ -12,7 +12,13 @@ from openai import OpenAI
 from aria.frameworks import FRAMEWORK_REGISTRY
 from server.websocket import ws_manager
 from aria.models import ARIAObservation
+from aria.generator import create_task_from_text
 from baseline.agent import MultiPassAgent
+
+from pydantic import BaseModel
+class UploadPayload(BaseModel):
+    filename: str
+    content: str
 
 router = APIRouter()
 BASELINE_CACHE = Path(__file__).parent.parent / "baseline" / "baseline_results.json"
@@ -79,6 +85,15 @@ async def trigger_demo(task_id: str, background_tasks: BackgroundTasks):
     session_id = "hackathon_demo_001" 
     background_tasks.add_task(run_internal_audit, task_id, session_id)
     return {"message": "Audit triggered", "session_id": session_id}
+
+@router.post("/upload/custom")
+async def upload_custom_audit(payload: UploadPayload):
+    """Generates a custom audit task from raw text and saves it as 'custom'"""
+    try:
+        task_data = create_task_from_text(payload.content, payload.filename)
+        return {"message": "Custom task created", "task_id": task_data["task_id"]}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 # ─── Existing Routes (Untouched) ─────────────────────────────────────────────
 

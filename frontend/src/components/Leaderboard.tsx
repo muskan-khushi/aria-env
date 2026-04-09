@@ -139,11 +139,17 @@ export default function Leaderboard() {
           result.results.forEach((r: any) => {
             const agentKey = r.agent || "Local Model";
             if (!fetchedAgents[agentKey]) {
-              fetchedAgents[agentKey] = { agent: agentKey, easy: 0, medium: 0, hard: 0, expert: 0, status: "local run", precisions: [], recalls: [] };
+              fetchedAgents[agentKey] = { 
+                agent: agentKey, easy: 0, medium: 0, hard: 0, export: 0, expert: 0,
+                status: "local run", precisions: [], recalls: [], 
+                evidences: [], remediations: []
+              };
             }
             fetchedAgents[agentKey][r.task] = r.score || 0;
             fetchedAgents[agentKey].precisions.push(r.precision || 0);
             fetchedAgents[agentKey].recalls.push(r.recall || 0);
+            if (r.evidence_score !== undefined) fetchedAgents[agentKey].evidences.push(r.evidence_score);
+            if (r.remediation_score !== undefined) fetchedAgents[agentKey].remediations.push(r.remediation_score);
           });
           
           const formatted = Object.values(fetchedAgents).map((a: any) => ({
@@ -151,6 +157,8 @@ export default function Leaderboard() {
             avg: (a.easy + a.medium + a.hard + a.expert) / 4,
             precision: a.precisions.length > 0 ? a.precisions.reduce((s: number, v: number) => s + v, 0) / a.precisions.length : 0,
             recall: a.recalls.length > 0 ? a.recalls.reduce((s: number, v: number) => s + v, 0) / a.recalls.length : 0,
+            evidence: a.evidences.length > 0 ? a.evidences.reduce((s: number, v: number) => s + v, 0) / a.evidences.length : 0,
+            remediation: a.remediations.length > 0 ? a.remediations.reduce((s: number, v: number) => s + v, 0) / a.remediations.length : 0,
           }));
           
           const combined = [...fallbackLeaderboard];
@@ -296,12 +304,24 @@ export default function Leaderboard() {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 4 }}>
                   <div style={{ background: 'rgba(109,40,217,0.05)', borderRadius: 8, padding: '8px 10px' }}>
                     <p style={{ fontSize: 10, color: 'var(--color-text-secondary)', margin: 0 }}>Precision</p>
-                    <p style={{ fontSize: 18, fontWeight: 700, color: '#7C3AED', margin: '2px 0 0', fontFamily: 'monospace' }}>{selectedAgent.precision.toFixed(2)}</p>
+                    <p style={{ fontSize: 18, fontWeight: 700, color: '#7C3AED', margin: '2px 0 0', fontFamily: 'monospace' }}>{selectedAgent.precision?.toFixed(2) || '0.00'}</p>
                   </div>
                   <div style={{ background: 'rgba(13,148,136,0.05)', borderRadius: 8, padding: '8px 10px' }}>
                     <p style={{ fontSize: 10, color: 'var(--color-text-secondary)', margin: 0 }}>Recall</p>
-                    <p style={{ fontSize: 18, fontWeight: 700, color: '#0D9488', margin: '2px 0 0', fontFamily: 'monospace' }}>{selectedAgent.recall.toFixed(2)}</p>
+                    <p style={{ fontSize: 18, fontWeight: 700, color: '#0D9488', margin: '2px 0 0', fontFamily: 'monospace' }}>{selectedAgent.recall?.toFixed(2) || '0.00'}</p>
                   </div>
+                  {(selectedAgent as any).evidence !== undefined && (
+                    <div style={{ background: 'rgba(59,130,246,0.05)', borderRadius: 8, padding: '8px 10px' }}>
+                      <p style={{ fontSize: 10, color: 'var(--color-text-secondary)', margin: 0 }}>Evidence Score</p>
+                      <p style={{ fontSize: 18, fontWeight: 700, color: '#3B82F6', margin: '2px 0 0', fontFamily: 'monospace' }}>{(selectedAgent as any).evidence?.toFixed(2) || '0.00'}</p>
+                    </div>
+                  )}
+                  {(selectedAgent as any).remediation !== undefined && (
+                    <div style={{ background: 'rgba(239,68,68,0.05)', borderRadius: 8, padding: '8px 10px' }}>
+                      <p style={{ fontSize: 10, color: 'var(--color-text-secondary)', margin: 0 }}>Remediation</p>
+                      <p style={{ fontSize: 18, fontWeight: 700, color: '#EF4444', margin: '2px 0 0', fontFamily: 'monospace' }}>{(selectedAgent as any).remediation?.toFixed(2) || '0.00'}</p>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

@@ -76,6 +76,26 @@ export default function FindingsPanel({ findings, onViewClause }: FindingsPanelP
                 {/* Description */}
                 <p className="text-sm text-aria-textMuted mb-3 leading-relaxed">{finding.description}</p>
 
+                {/* Explainability Panel */}
+                {finding.agent_thinking && (
+                  <div className="mb-4 bg-[#FAFAFD] border border-aria-border rounded-lg p-3 relative overflow-hidden group">
+                    <div className="absolute left-0 top-0 bottom-0 w-1 bg-aria-accent" />
+                    <div className="flex items-center justify-between mb-2">
+                       <span className="text-[10px] font-bold text-aria-accent uppercase tracking-widest flex items-center gap-1.5">
+                         🤖 Agent Reasoning
+                       </span>
+                       {finding.confidence_score !== undefined && (
+                         <span className="text-[10px] font-bold text-aria-textMuted">
+                           Confidence: {(finding.confidence_score * 100).toFixed(0)}%
+                         </span>
+                       )}
+                    </div>
+                    <p className="text-xs text-gray-600 font-mono leading-relaxed line-clamp-3 group-hover:line-clamp-none transition-all">
+                      {finding.agent_thinking}
+                    </p>
+                  </div>
+                )}
+
                 {/* Clause ref pill */}
                 {finding.clause_ref && (
                   <p className="text-[10px] font-mono text-aria-textMuted bg-gray-100 rounded px-2 py-1 mb-3 w-fit">
