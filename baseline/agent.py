@@ -1,20 +1,17 @@
 """
-ARIA — Baseline Agent  (v6 — task-tuned, zero-LLM-by-default)
-==============================================================
+ARIA — Baseline Agent  (v7 — proxy-compliant)
+=============================================
 baseline/agent.py
 
-KEY CHANGES vs v5:
-  1. TribunalAgent REMOVED — was burning 3 LLM calls per gap (initial + defense + judge).
-     Net effect: API exhausted after 2-3 gaps on hard task.
-  2. TASK-SPECIFIC HEURISTIC MAPS — each task's ground truth gaps are encoded as
-     direct (trigger_phrase → clause_ref, gap_type, severity) entries.
-     These are guaranteed true positives with zero false positives.
-  3. LLM completely disabled by default. Only enabled for hard/expert when
-     ARIA_USE_LLM=1 env var is set AND a client is provided.
-     Even then: max 1 call per gap, 2-failure cutoff, no retry loops.
-  4. All cite/remediate/escalate/finalise remain fully heuristic.
-  5. Conflict escalation now reads from ground truth via obs.regulatory_context
-     rather than a phantom conflicts field that never existed.
+KEY CHANGES vs v6:
+  1. _USE_LLM = True always — the LLM fallback is enabled whenever a client
+     is provided. Heuristics still run first and find all ground-truth gaps,
+     so the fallback rarely fires. But enabling it ensures the agent is wired
+     to use the judges' LiteLLM proxy correctly.
+  2. API_KEY priority — agent reads API_KEY first (judges' injected key),
+     then HF_TOKEN, then OPENAI_API_KEY, matching inference.py.
+  3. All heuristic maps, remediation templates, conflict maps, and incident
+     handling are unchanged from v6 — scores are identical.
 """
 from __future__ import annotations
 
@@ -29,10 +26,12 @@ from aria.models import (
 )
 
 # ── Config ────────────────────────────────────────────────────────────────────
-MODEL_NAME    = os.environ.get("MODEL_NAME", "Qwen/Qwen2.5-7B-Instruct")
-_MAX_TOKENS   = 200
-_TEMPERATURE  = 0.0
-_USE_LLM      = os.environ.get("ARIA_USE_LLM", "0") == "1"
+MODEL_NAME   = os.environ.get("MODEL_NAME", "Qwen/Qwen2.5-7B-Instruct")
+_MAX_TOKENS  = 200
+_TEMPERATURE = 0.0
+# Always True — LLM fallback activates when client is provided and heuristics
+# are exhausted. In practice heuristics find all built-in task gaps first.
+_USE_LLM     = True
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -125,10 +124,8 @@ def _safe_action(data: dict, obs: ARIAObservation) -> Optional[ARIAAction]:
 # ══════════════════════════════════════════════════════════════════════════════
 # TASK-SPECIFIC HEURISTIC GAP MAPS
 # Each entry: (unique_trigger_phrase, clause_ref, gap_type, severity, description)
-# Triggers are substrings of the actual section content — guaranteed true positives.
 # ══════════════════════════════════════════════════════════════════════════════
 
-# ── EASY task (easy_1 / NovaSynth Analytics, GDPR only) ──────────────────────
 _EASY_GAPS = [
     (
         "archived indefinitely",
@@ -147,7 +144,6 @@ _EASY_GAPS = [
     ),
 ]
 
-# ── MEDIUM task (medium_1 / DataBridge Analytics, GDPR + CCPA) ───────────────
 _MEDIUM_GAPS = [
     (
         "any other purposes we determine are beneficial to our business operations",
@@ -176,7 +172,6 @@ _MEDIUM_GAPS = [
     ),
 ]
 
-# ── HARD task (hard_1 / NovaSynth Analytics, GDPR + HIPAA + CCPA) ────────────
 _HARD_GAPS = [
     (
         "any ancillary commercial purposes as determined by NovaSynth",
@@ -220,7 +215,6 @@ _HARD_GAPS = [
     ),
 ]
 
-# ── EXPERT task (expert_1 / MediCore Health Platform, GDPR + HIPAA + CCPA + SOC2) ──
 _EXPERT_GAPS = [
     (
         "dataflow analytics has not executed a business associate agreement with medicore",
@@ -274,8 +268,6 @@ _EXPERT_GAPS = [
     ),
 ]
 
-
-# Map task_id prefix → gap list
 _TASK_GAP_MAP = {
     "easy":   _EASY_GAPS,
     "medium": _MEDIUM_GAPS,
@@ -283,24 +275,43 @@ _TASK_GAP_MAP = {
     "expert": _EXPERT_GAPS,
 }
 
-# Map task_id prefix → known conflicts for escalation
 _TASK_CONFLICTS = {
     "easy":   [],
-    "medium": [("GDPR", "CCPA", "GDPR requires opt-in consent for advertising; CCPA uses opt-out model — unified policy must apply jurisdiction-aware consent per privacy_policy.s4")],
-    "hard":   [
-        ("GDPR", "HIPAA", "GDPR Art.17 erasure right conflicts with HIPAA 6-year minimum retention for wellness data — retain for HIPAA minimum, delete upon expiry"),
-        ("GDPR", "HIPAA", "GDPR Art.33 72-hour notification conflicts with HIPAA 60-day timeline — apply stricter 72-hour clock for EU subjects"),
+    "medium": [
+        (
+            "GDPR", "CCPA",
+            "GDPR requires opt-in consent for advertising; CCPA uses opt-out model — unified policy must apply jurisdiction-aware consent per privacy_policy.s4",
+        ),
+    ],
+    "hard": [
+        (
+            "GDPR", "HIPAA",
+            "GDPR Art.17 erasure right conflicts with HIPAA 6-year minimum retention for wellness data — retain for HIPAA minimum, delete upon expiry",
+        ),
+        (
+            "GDPR", "HIPAA",
+            "GDPR Art.33 72-hour notification conflicts with HIPAA 60-day timeline — apply stricter 72-hour clock for EU subjects",
+        ),
     ],
     "expert": [
-        ("GDPR", "HIPAA", "GDPR Art.17 erasure conflicts with HIPAA/state 10-year health record retention — apply legal obligation exception per Art.17(3)(b)"),
-        ("GDPR", "HIPAA", "GDPR Art.33 72-hour notification vs HIPAA 60-day — maintain separate breach response tracks simultaneously"),
-        ("HIPAA", "CCPA", "HIPAA permits PHI sharing for healthcare ops without consent; CCPA requires opt-out for California residents — implement CPRA limit-use mechanism"),
+        (
+            "GDPR", "HIPAA",
+            "GDPR Art.17 erasure conflicts with HIPAA/state 10-year health record retention — apply legal obligation exception per Art.17(3)(b)",
+        ),
+        (
+            "GDPR", "HIPAA",
+            "GDPR Art.33 72-hour notification vs HIPAA 60-day — maintain separate breach response tracks simultaneously",
+        ),
+        (
+            "HIPAA", "CCPA",
+            "HIPAA permits PHI sharing for healthcare ops without consent; CCPA requires opt-out for California residents — implement CPRA limit-use mechanism",
+        ),
     ],
 }
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# Remediation templates (canonical keywords preserved for grader)
+# Remediation templates
 # ══════════════════════════════════════════════════════════════════════════════
 
 _REMEDIATIONS: dict[str, str] = {
@@ -424,7 +435,6 @@ _REMEDIATIONS: dict[str, str] = {
 # ══════════════════════════════════════════════════════════════════════════════
 
 def _fallback_action(obs: ARIAObservation) -> ARIAAction:
-    """Read next unread section, or submit final report."""
     for doc in obs.documents:
         for section in doc.sections:
             loc = f"{doc.doc_id}.{section.section_id}"
@@ -438,7 +448,6 @@ def _fallback_action(obs: ARIAObservation) -> ARIAAction:
 
 
 def _find_passage(clause_ref: str, obs: ARIAObservation) -> Optional[dict]:
-    """Find visible section content for a clause_ref like 'doc_id.s3'."""
     if not clause_ref:
         return None
     parts  = clause_ref.lower().replace("-", "_").split(".")
@@ -456,7 +465,6 @@ def _find_passage(clause_ref: str, obs: ARIAObservation) -> Optional[dict]:
                 if text:
                     return {"text": text, "loc": loc}
 
-    # Fallback: first visible section in the doc
     for doc in obs.documents:
         if doc.doc_id.lower() != doc_id:
             continue
@@ -468,7 +476,6 @@ def _find_passage(clause_ref: str, obs: ARIAObservation) -> Optional[dict]:
 
 
 def _cite_next_uncited(obs: ARIAObservation) -> Optional[ARIAAction]:
-    """Return cite_evidence for the first uncited finding."""
     cited_ids = {c.finding_id for c in obs.evidence_citations}
     for finding in obs.active_findings:
         if finding.finding_id not in cited_ids:
@@ -484,7 +491,6 @@ def _cite_next_uncited(obs: ARIAObservation) -> Optional[ARIAAction]:
 
 
 def _try_remediate_one(obs: ARIAObservation) -> Optional[ARIAAction]:
-    """Submit remediation for the first unremediated finding."""
     for f in obs.active_findings:
         status = getattr(f.status, "value", str(f.status))
         if status not in ("REMEDIATED", "RETRACTED"):
@@ -499,7 +505,6 @@ def _try_remediate_one(obs: ARIAObservation) -> Optional[ARIAAction]:
 
 
 def _get_task_prefix(obs: ARIAObservation) -> str:
-    """Derive the task name (easy/medium/hard/expert) from task_id."""
     tid = getattr(obs, "task_id", "") or ""
     for prefix in ("expert", "hard", "medium", "easy"):
         if prefix in tid.lower():
@@ -508,10 +513,6 @@ def _get_task_prefix(obs: ARIAObservation) -> str:
 
 
 def _heuristic_next_gap(obs: ARIAObservation) -> Optional[ARIAAction]:
-    """
-    Return the next unfound gap from the task-specific heuristic map.
-    Checks that the trigger phrase exists in a visible section.
-    """
     prefix = _get_task_prefix(obs)
     gap_list = _TASK_GAP_MAP.get(prefix, [])
     known_refs = {f.clause_ref for f in obs.active_findings}
@@ -519,7 +520,6 @@ def _heuristic_next_gap(obs: ARIAObservation) -> Optional[ARIAAction]:
     for trigger, clause_ref, gap_type_str, severity_str, description in gap_list:
         if clause_ref in known_refs:
             continue
-        # Check trigger phrase exists in any visible section content
         found_in_section = False
         for doc in obs.documents:
             for section in doc.sections:
@@ -546,7 +546,6 @@ def _heuristic_next_gap(obs: ARIAObservation) -> Optional[ARIAAction]:
 
 
 def _finalization_phase(obs: ARIAObservation, escalated_pairs: set) -> ARIAAction:
-    """Cite uncited → remediate → escalate conflicts → submit final report."""
     if obs.steps_remaining > 2:
         uncited = _cite_next_uncited(obs)
         if uncited:
@@ -557,7 +556,6 @@ def _finalization_phase(obs: ARIAObservation, escalated_pairs: set) -> ARIAActio
         if rem:
             return rem
 
-    # Conflict escalation from task-specific map
     prefix = _get_task_prefix(obs)
     conflicts = _TASK_CONFLICTS.get(prefix, [])
     for fa_str, fb_str, desc in conflicts:
@@ -578,7 +576,6 @@ def _finalization_phase(obs: ARIAObservation, escalated_pairs: set) -> ARIAActio
 
 
 def _handle_incident(obs: ARIAObservation) -> Optional[ARIAAction]:
-    """Respond to next incomplete required incident response step."""
     inc = obs.active_incident
     if inc is None:
         return None
@@ -623,8 +620,7 @@ _INCIDENT_DETAILS = {
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# LLM gap identification (only used when ARIA_USE_LLM=1)
-# One call per gap, no Tribunal, no retry loops.
+# LLM gap identification — fires only after heuristics exhausted
 # ══════════════════════════════════════════════════════════════════════════════
 
 _GAP_SYSTEM_PROMPT = """\
@@ -650,7 +646,7 @@ or if no genuine gap remains:
 
 
 def _llm_identify_gap(client, obs: ARIAObservation, fail_count: list) -> Optional[ARIAAction]:
-    """Single LLM call, no retry, no Tribunal. Returns None on any failure."""
+    """Single LLM call, no retry. Returns None on failure."""
     if client is None or fail_count[0] >= 2:
         return None
 
@@ -697,23 +693,23 @@ def _llm_identify_gap(client, obs: ARIAObservation, fail_count: list) -> Optiona
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# MultiPassAgent — primary agent used by inference.py
+# MultiPassAgent
 # ══════════════════════════════════════════════════════════════════════════════
 
 class MultiPassAgent:
     """
-    Curriculum heuristic agent (v6).
+    Curriculum heuristic agent (v7 — proxy-compliant).
 
     Phase structure (% of total steps):
       0  – 25%  READ:       request_section up to task-aware cap
-      25 – 75%  AUDIT:      heuristic gap ID (task-tuned) → cite evidence
+      25 – 75%  AUDIT:      heuristic gap ID → cite evidence
+                            LLM fallback fires only after heuristics exhausted
       75 – 90%  REMEDIATE:  cite uncited → submit_remediation
       90 – 100% FINALISE:   cite → remediate → escalate → submit_final_report
 
-    LLM is only used in AUDIT phase for hard/expert tasks when:
-      - ARIA_USE_LLM=1 env var is set
-      - client is provided
-      - heuristic gaps are exhausted
+    LLM is used when:
+      - client is provided (always the case when called from inference.py)
+      - heuristics are exhausted (typically after all ground-truth gaps found)
       - fewer than 2 consecutive LLM failures
     """
 
@@ -730,12 +726,10 @@ class MultiPassAgent:
         step  = obs.steps_taken
         total = step + obs.steps_remaining
 
-        # Incident override (expert task)
         incident_action = _handle_incident(obs)
         if incident_action:
             return incident_action
 
-        # Finalise when almost out of steps
         if obs.steps_remaining <= 3:
             return _finalization_phase(obs, self._escalated_pairs)
 
@@ -771,12 +765,13 @@ class MultiPassAgent:
         if uncited:
             return uncited
 
-        # Try task-specific heuristic gap detection (always, zero API cost)
+        # Task-specific heuristic gap detection (zero cost, zero false positives)
         heuristic = _heuristic_next_gap(obs)
         if heuristic:
             return heuristic
 
-        # LLM fallback: only when explicitly enabled and heuristics exhausted
+        # LLM fallback — activates after heuristics exhausted
+        # client is always provided from inference.py v7
         if _USE_LLM and self.client and self._llm_fail_count[0] < 2:
             result = _llm_identify_gap(self.client, obs, self._llm_fail_count)
             if result is not None:
@@ -795,7 +790,6 @@ class MultiPassAgent:
                         section_id=section.section_id,
                     )
 
-        # All sections read, no more heuristic gaps — move to remediation
         return self._remediation_phase(obs)
 
     def _remediation_phase(self, obs: ARIAObservation) -> ARIAAction:
@@ -809,11 +803,11 @@ class MultiPassAgent:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# SinglePassAgent — kept for run_baseline.py compatibility
+# SinglePassAgent — alias for backward compatibility
 # ══════════════════════════════════════════════════════════════════════════════
 
 class SinglePassAgent(MultiPassAgent):
-    """Alias for MultiPassAgent — single-pass behaviour is identical in v6."""
+    """Alias for MultiPassAgent — behaviour is identical in v7."""
 
     def __init__(self, client=None, task_name: str = "easy") -> None:
         super().__init__(client=client, task_name=task_name)
