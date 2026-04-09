@@ -1,45 +1,38 @@
 # Stage 1: Build React frontend
-FROM node:18 AS frontend-builder
-
+FROM node:20-slim AS frontend-builder
 WORKDIR /app/frontend
 
-# Copy only dependency files first (better caching)
+# Copy dependency files
 COPY frontend/package*.json ./
 
-# Use deterministic install
-RUN npm ci
+# Use install instead of ci for flexibility
+RUN npm install --silent
 
-# Copy rest of frontend
-COPY frontend/ ./
+# Copy the rest of the frontend code
+COPY frontend/ .
 
-# Build frontend
+# Execute the build
 RUN npm run build
-
 
 # Stage 2: Final Production Image
 FROM python:3.11-slim
-
 WORKDIR /app
 
 # Install system utilities
 RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
 
-# Create non-root user (HF requirement)
+# Set up Hugging Face non-root user (UID 1000)
 RUN useradd -m -u 1000 user
-
-# Set environment
+USER user
 ENV HOME=/home/user \
     PATH=/home/user/.local/bin:$PATH \
-    PYTHONPATH=/app
+    PYTHONPATH=/app 
 
-# Switch to user
-USER user
-
-# Install Python dependencies
+# Install Python requirements
 COPY --chown=user requirements.txt .
 RUN pip install --no-cache-dir --user -r requirements.txt
 
-# Copy backend code
+# Copy application files
 COPY --chown=user aria/ ./aria/
 COPY --chown=user server/ ./server/
 COPY --chown=user tasks/ ./tasks/
@@ -47,17 +40,16 @@ COPY --chown=user inference.py .
 COPY --chown=user openenv.yaml .
 COPY --chown=user baseline/ ./baseline/
 
-# Copy built frontend
+# Copy built frontend to the static directory used by FastAPI
 COPY --from=frontend-builder --chown=user /app/frontend/dist ./static/
 
-# Create writable directory
+# Create a writable directory for local data/logs
 RUN mkdir -p /home/user/aria_data
 
-# Expose HF port
+# The port must be 7860 for HF Spaces
 EXPOSE 7860
 
-# Metadata
+# Metadata for the Space
 LABEL openenv="compliant"
 
-# Run app
 CMD ["uvicorn", "server.app:app", "--host", "0.0.0.0", "--port", "7860", "--forwarded-allow-ips", "*"]
