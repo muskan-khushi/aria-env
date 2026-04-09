@@ -1,28 +1,24 @@
 """
-ARIA — Baseline Agent Prompts  (token-optimised v4)
+ARIA — Baseline Agent Prompts  (v5 — score-optimised)
 =====================================================
 baseline/prompts.py
 
-v4 changes:
-  - SYSTEM_PROMPT: stripped down to ~60% of original size.
-    All scoring rules and red herring examples removed — the LLM only needs
-    to identify ONE gap, not understand the full scoring system.
-  - build_user_prompt(): retained for backward compatibility but now delegates
-    to build_gap_identification_prompt() internally — it's never called
-    directly by the v4 agents.
-  - build_gap_identification_prompt(): section content capped at 200 chars
-    (was 350). Step-hint threshold lowered to 8 steps (was 10).
-
-Both agents in agent.py now use _build_llm_gap_prompt() (inline in agent.py)
-which is even leaner than build_gap_identification_prompt().
-These functions are kept here for any external code that imports them.
+v5 changes vs v4:
+  - SYSTEM_PROMPT: added red herring warning block and clearer workflow.
+    The original truncated section content caused the LLM to flag compliant
+    clauses (e.g. "retained for a maximum period of 24 months" → the safe
+    phrase "maximum period" was cut off at 200 chars).
+  - build_gap_identification_prompt(): section content cap increased from
+    200 → 400 chars to reduce false positives from truncated safe phrases.
+  - Step-hint threshold kept at 8 steps.
+  - Added explicit list of compliant patterns the LLM should NOT flag.
 """
 from __future__ import annotations
 from aria.models import ARIAObservation
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# System Prompt  (v4 — compact, enum-anchored)
+# System Prompt  (v5 — compact + red herring aware)
 # ══════════════════════════════════════════════════════════════════════════════
 
 SYSTEM_PROMPT = """You are ARIA-Auditor, a senior AI compliance analyst.
@@ -41,6 +37,14 @@ YOUR WORKFLOW:
    "maximum retention period", "standard contractual clauses", "freely given").
 5. ESCALATE: escalate_conflict for cross-framework contradictions.
 6. FINALIZE: submit_final_report when complete or steps_remaining < 3.
+
+⚠ RED HERRING WARNING — Do NOT flag these COMPLIANT patterns:
+  - Retention: clauses specifying "maximum period of X months/years", "securely destroyed using NIST 800-88"
+  - Transfer: clauses citing "Standard Contractual Clauses (SCCs) ... Transfer Impact Assessment"
+  - BAA: "Business Associate Agreements with each covered entity", "governed by signed BAA"
+  - DPO: "has appointed a Data Protection Officer", "DPO is contactable at [email]"
+  - Rights: processor forwarding requests to controller "within 5 days" is compliant
+  - Breach: internal notification SLAs (e.g. "CISO within 1 hour") are NOT GDPR Art.33 violations
 
 VALID action_type values:
   request_section, identify_gap, cite_evidence, submit_remediation,
@@ -66,14 +70,15 @@ Examples:
 def build_gap_identification_prompt(obs: ARIAObservation) -> str:
     """
     Focused prompt for gap identification only.
-    Section content capped at 200 chars (v4, was 350 in v3).
+    Section content capped at 400 chars (v5; was 200 in v4 which caused false
+    positives when safe phrases like "maximum period of 24 months" were truncated).
     """
     visible_sections: list[str] = []
     for doc in obs.documents:
         for section in doc.sections:
             loc = f"{doc.doc_id}.{section.section_id}"
             if loc in obs.visible_sections:
-                content_preview = section.content[:200].strip().replace("\n", " ")
+                content_preview = section.content[:400].strip().replace("\n", " ")
                 visible_sections.append(f"[{loc}] {section.title}: {content_preview}")
 
     known_refs = sorted({f.clause_ref for f in obs.active_findings})
@@ -87,7 +92,7 @@ def build_gap_identification_prompt(obs: ARIAObservation) -> str:
     if obs.steps_remaining < 8:
         step_hint = (
             f"\n⚠ Only {obs.steps_remaining} steps remaining. "
-            "If no clear gap found, respond with submit_final_report."
+            "If no clear genuine gap found, respond with submit_final_report."
         )
 
     return (
@@ -101,18 +106,17 @@ def build_gap_identification_prompt(obs: ARIAObservation) -> str:
         "data_subject_rights, cross_border_transfer, data_minimization, purpose_limitation, "
         "dpo_requirement, phi_safeguard, baa_requirement, opt_out_mechanism, "
         "audit_log_requirement, availability_control"
-        + "\n\nIdentify ONE compliance gap. Respond with identify_gap JSON or submit_final_report."
+        + "\n\nIdentify ONE genuine compliance gap (avoid red herrings). "
+        "Respond with identify_gap JSON or submit_final_report."
     )
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# build_user_prompt  (kept for backward compatibility — delegates to gap prompt)
+# build_user_prompt  (kept for backward compatibility)
 # ══════════════════════════════════════════════════════════════════════════════
 
 def build_user_prompt(obs: ARIAObservation) -> str:
     """
-    Backward-compatible wrapper. v4 agents never call this directly,
-    but any external code that imports it will get the gap-identification
-    prompt instead of the old full-observation dump.
+    Backward-compatible wrapper — delegates to build_gap_identification_prompt.
     """
     return build_gap_identification_prompt(obs)
