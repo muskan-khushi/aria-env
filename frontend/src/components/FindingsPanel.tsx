@@ -2,31 +2,63 @@ import { ShieldAlert, AlertTriangle, CheckCircle2, Clock, ChevronRight } from 'l
 
 interface FindingsPanelProps {
   findings: any[];
-  /** Called when user clicks "View Clause" — passes the section_id to highlight in the doc viewer */
   onViewClause?: (sectionId: string) => void;
 }
 
-/**
- * Extracts the section_id from a clause_ref.
- * e.g. "privacy_policy.s3.p2" → "s3"
- *      "privacy_policy.s3"     → "s3"
- */
 function extractSectionId(clauseRef: string): string | null {
   if (!clauseRef) return null;
   const parts = clauseRef.split('.');
-  // Format is typically: doc_id.section_id[.paragraph]
   return parts.length >= 2 ? parts[1] : null;
 }
 
-/**
- * Determines if a finding has a cited evidence entry.
- * The backend sets finding.status = 'CITED' or 'REMEDIATED' once evidence is attached.
- */
 function hasCitation(finding: any): boolean {
-  return finding.status === 'CITED' || finding.status === 'REMEDIATED';
+  const status = getStatus(finding);
+  return status === 'CITED' || status === 'REMEDIATED';
+}
+
+// FIX: Handle both string statuses and object statuses from backend
+function getStatus(finding: any): string {
+  if (!finding) return 'PENDING';
+  const s = finding.status;
+  if (!s) return 'PENDING';
+  // If it's an object with a value field (Pydantic enum serialization)
+  if (typeof s === 'object' && s !== null) return s.value || 'PENDING';
+  return String(s);
+}
+
+// FIX: Handle gap_type that may come as string or enum object
+function getGapType(finding: any): string {
+  if (!finding) return 'unknown';
+  const gt = finding.gap_type;
+  if (!gt) return 'unknown';
+  if (typeof gt === 'object' && gt !== null) return gt.value || String(gt);
+  return String(gt);
+}
+
+// FIX: Handle severity that may come as string or enum object
+function getSeverity(finding: any): string {
+  if (!finding) return 'medium';
+  const sev = finding.severity;
+  if (!sev) return 'medium';
+  if (typeof sev === 'object' && sev !== null) return sev.value || String(sev);
+  return String(sev);
+}
+
+// FIX: Handle framework
+function getFramework(finding: any): string {
+  if (!finding) return '';
+  const fw = finding.framework;
+  if (!fw) return '';
+  if (typeof fw === 'object' && fw !== null) return fw.value || String(fw);
+  return String(fw);
 }
 
 export default function FindingsPanel({ findings, onViewClause }: FindingsPanelProps) {
+  // DEBUG: Log findings to console to verify data flow
+  if (findings && findings.length > 0) {
+    console.log('[FindingsPanel] Received findings:', findings.length, findings[0]);
+  }
+
   return (
     <div className="col-span-4 flex flex-col gap-3">
       <div className="flex items-center justify-between pl-1">
@@ -38,45 +70,57 @@ export default function FindingsPanel({ findings, onViewClause }: FindingsPanelP
 
       <div className="flex-1 matte-panel p-5 overflow-y-auto bg-gray-50/30 flex flex-col gap-4 pr-2" style={{ maxHeight: '640px' }}>
         {findings.length === 0 ? (
-          <div className="h-full flex items-center justify-center text-xs text-aria-textMuted italic">
-            Awaiting findings...
+          <div className="h-full flex flex-col items-center justify-center gap-3 text-aria-textMuted">
+            <div className="w-12 h-12 rounded-xl bg-gray-100 flex items-center justify-center">
+              <ShieldAlert className="w-6 h-6 text-gray-300" />
+            </div>
+            <div className="text-center">
+              <p className="text-xs font-semibold text-aria-textMuted">Awaiting findings...</p>
+              <p className="text-[10px] text-aria-textMuted/60 mt-1">Gaps will appear here as the agent audits</p>
+            </div>
           </div>
         ) : (
-          findings.map((finding) => {
+          findings.map((finding, index) => {
             const sectionId = extractSectionId(finding.clause_ref);
             const cited = hasCitation(finding);
+            const severity = getSeverity(finding);
+            const gapType = getGapType(finding);
+            const framework = getFramework(finding);
+            const status = getStatus(finding);
 
             return (
               <div
-                key={finding.finding_id}
+                key={finding.finding_id || index}
                 className="bg-white border border-aria-border p-4 rounded-xl shadow-sm animate-in fade-in zoom-in-95 duration-500"
               >
                 {/* Header row */}
                 <div className="flex justify-between items-start mb-3">
                   <div className="flex items-center gap-2">
-                    {finding.severity === 'high'
+                    {severity === 'high'
                       ? <ShieldAlert className="w-4 h-4 text-pastel-blushText" />
                       : <AlertTriangle className="w-4 h-4 text-pastel-peachText" />
                     }
                     <span className="text-xs font-bold uppercase tracking-wider text-aria-textMain">
-                      {finding.framework ? `${finding.framework} ` : ''}GAP
+                      {framework ? `${framework} ` : ''}GAP
                     </span>
                   </div>
                   <span
                     className={`text-[10px] font-bold px-2 py-1 rounded-md uppercase border ${
-                      finding.severity === 'high'
+                      severity === 'high'
                         ? 'bg-pastel-blush text-pastel-blushText border-pastel-blushBorder'
                         : 'bg-pastel-peach text-pastel-peachText border-pastel-peachBorder'
                     }`}
                   >
-                    {finding.gap_type?.replace(/_/g, ' ')}
+                    {gapType.replace(/_/g, ' ')}
                   </span>
                 </div>
 
                 {/* Description */}
-                <p className="text-sm text-aria-textMuted mb-3 leading-relaxed">{finding.description}</p>
+                <p className="text-sm text-aria-textMuted mb-3 leading-relaxed">
+                  {finding.description || 'No description provided.'}
+                </p>
 
-                {/* Explainability Panel */}
+                {/* Agent thinking panel */}
                 {finding.agent_thinking && (
                   <div className="mb-4 bg-[#FAFAFD] border border-aria-border rounded-lg p-3 relative overflow-hidden group">
                     <div className="absolute left-0 top-0 bottom-0 w-1 bg-aria-accent" />
@@ -115,9 +159,26 @@ export default function FindingsPanel({ findings, onViewClause }: FindingsPanelP
                   </p>
                 )}
 
+                {/* Severity badge */}
+                <div className="flex items-center gap-2 mb-3">
+                  <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full uppercase ${
+                    severity === 'high' ? 'bg-red-100 text-red-700' :
+                    severity === 'medium' ? 'bg-amber-100 text-amber-700' :
+                    'bg-green-100 text-green-700'
+                  }`}>
+                    {severity} severity
+                  </span>
+                  <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${
+                    status === 'REMEDIATED' ? 'bg-purple-100 text-purple-700' :
+                    status === 'CITED' ? 'bg-blue-100 text-blue-700' :
+                    'bg-gray-100 text-gray-500'
+                  }`}>
+                    {status}
+                  </span>
+                </div>
+
                 {/* Footer row */}
                 <div className="flex items-center justify-between pt-3 border-t border-aria-border">
-                  {/* Evidence status — only shown when actually cited */}
                   {cited ? (
                     <div className="flex items-center gap-1.5 text-xs font-semibold text-pastel-sageText">
                       <CheckCircle2 className="w-4 h-4" /> Evidence Cited
@@ -128,7 +189,6 @@ export default function FindingsPanel({ findings, onViewClause }: FindingsPanelP
                     </div>
                   )}
 
-                  {/* View Clause button — scrolls + highlights the section in the doc viewer */}
                   <button
                     onClick={() => {
                       if (sectionId && onViewClause) {

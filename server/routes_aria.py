@@ -1,4 +1,6 @@
-"""ARIA — Extended Frontend Routes"""
+"""ARIA — Extended Frontend Routes v2
+FIX: Use model_dump(mode='json') throughout to ensure proper enum serialization.
+"""
 from __future__ import annotations
 import json
 import os
@@ -8,7 +10,6 @@ from pathlib import Path
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, BackgroundTasks, HTTPException
 from openai import OpenAI
 
-# Internal imports
 from aria.frameworks import FRAMEWORK_REGISTRY
 from server.websocket import ws_manager
 from aria.models import ARIAObservation
@@ -34,7 +35,7 @@ router = APIRouter()
 BASELINE_CACHE = Path(__file__).parent.parent / "baseline" / "baseline_results.json"
 SESSION_STEERING = {}
 
-# In-memory episode replay store (keyed by session_id)
+# In-memory episode replay store
 _EPISODE_REPLAYS: dict[str, list[dict]] = {}
 
 
@@ -57,6 +58,7 @@ async def run_internal_audit(task_id: str, session_id: str):
         try:
             resp = await http_client.post(f"{api_base}/reset", json=reset_payload, headers=headers)
             if resp.status_code != 200:
+                print(f"[ARIA] Reset failed: {resp.status_code} {resp.text}")
                 return
 
             obs_data = resp.json()
@@ -64,7 +66,12 @@ async def run_internal_audit(task_id: str, session_id: str):
             _EPISODE_REPLAYS[session_id] = []
 
             while not done:
-                obs = ARIAObservation(**obs_data)
+                # FIX: Parse observation - handle serialized enum strings
+                try:
+                    obs = ARIAObservation(**obs_data)
+                except Exception as e:
+                    print(f"[ARIA] Obs parse error: {e}")
+                    break
 
                 steer = SESSION_STEERING.get(session_id)
                 if steer:
@@ -72,13 +79,17 @@ async def run_internal_audit(task_id: str, session_id: str):
 
                 action = agent.act(obs)
 
+                # FIX: Use mode='json' for action serialization
+                action_dict = action.model_dump(mode='json', exclude_none=True)
+
                 step_resp = await http_client.post(
                     f"{api_base}/step",
-                    json={"action": action.model_dump()},
+                    json={"action": action_dict},
                     headers=headers
                 )
 
                 if step_resp.status_code != 200:
+                    print(f"[ARIA] Step failed: {step_resp.status_code}")
                     break
 
                 result = step_resp.json()
@@ -86,7 +97,7 @@ async def run_internal_audit(task_id: str, session_id: str):
                 # Store step for replay
                 _EPISODE_REPLAYS.setdefault(session_id, []).append({
                     "step": result["observation"].get("steps_taken", 0),
-                    "action": action.model_dump(),
+                    "action": action_dict,
                     "reward": result["reward"],
                     "reward_reason": result["observation"].get("last_reward_reason", ""),
                     "observation": result["observation"],
@@ -98,7 +109,9 @@ async def run_internal_audit(task_id: str, session_id: str):
 
                 await asyncio.sleep(1.5)
         except Exception as e:
-            print(f"Internal Loop Error: {e}")
+            print(f"[ARIA] Internal Loop Error: {e}")
+            import traceback
+            traceback.print_exc()
 
 
 # ─── POST /demo/start/{task_id} ───────────────────────────────────────────────
@@ -126,18 +139,10 @@ async def upload_custom_audit(payload: UploadPayload):
 
 @router.post("/generate")
 async def generate_task(payload: GeneratePayload):
-    """
-    Procedurally generate a new compliance audit task.
-    Parameters: difficulty, seed, frameworks (comma-separated).
-    Results are cached by seed for reproducibility.
-    """
     import hashlib
-    from pathlib import Path
-
     TASKS_DIR = Path(__file__).parent.parent / "tasks" / "generated"
     TASKS_DIR.mkdir(parents=True, exist_ok=True)
 
-    # Cache key based on all parameters
     cache_key = hashlib.md5(
         f"{payload.difficulty}:{payload.seed}:{payload.frameworks}".encode()
     ).hexdigest()[:8]
@@ -147,17 +152,14 @@ async def generate_task(payload: GeneratePayload):
         with open(cache_file) as f:
             return json.load(f)
 
-    # Build a procedurally generated task from templates
     import uuid
     framework_list = [fw.strip() for fw in payload.frameworks.split(",") if fw.strip()]
 
-    # Industry templates for variety
     industry_templates = [
         {"name": "FinTrack Analytics", "industry": "FinTech SaaS", "data_types": ["financial_records", "consumer_pii"]},
         {"name": "HealthBridge Platform", "industry": "HealthTech SaaS", "data_types": ["phi", "patient_records"]},
         {"name": "RetailIQ Solutions", "industry": "E-commerce Analytics", "data_types": ["consumer_pii", "purchase_history"]},
         {"name": "HRConnect Pro", "industry": "HR Analytics SaaS", "data_types": ["employee_data", "payroll_records"]},
-        {"name": "EduTrack Systems", "industry": "EdTech Platform", "data_types": ["student_records", "behavioral_data"]},
     ]
     import random
     rng = random.Random(payload.seed)
@@ -205,16 +207,12 @@ async def generate_task(payload: GeneratePayload):
                 ]
             }
         ],
-        "ground_truth": {
-            "gaps": [],
-            "conflicts": []
-        },
+        "ground_truth": {"gaps": [], "conflicts": []},
         "max_steps": max_steps,
         "seed": payload.seed,
         "is_generated": True,
     }
 
-    # Save to cache
     with open(cache_file, "w") as f:
         json.dump(task_data, f, indent=2)
 
@@ -225,16 +223,11 @@ async def generate_task(payload: GeneratePayload):
 
 @router.get("/replay/{session_id}")
 async def get_replay(session_id: str):
-    """
-    Full step-by-step episode replay: all observations, actions, rewards,
-    and reward reasons at each step. Powers the EpisodeViewer dashboard tab.
-    """
     steps = _EPISODE_REPLAYS.get(session_id)
     if steps is None:
-        # Try to reconstruct from baseline results for well-known sessions
         raise HTTPException(
             status_code=404,
-            detail=f"No replay found for session {session_id}. Run an episode first via /demo/start/{{task_id}}"
+            detail=f"No replay found for session {session_id}."
         )
     return {
         "session_id": session_id,
@@ -270,17 +263,13 @@ async def get_leaderboard():
         try:
             with open(filepath) as f:
                 data = json.load(f)
-
             model_name = data.get("model", "Local Model")
             fallback_agent = data.get("agent", "Unknown Agent")
-
             for r in data.get("results", []):
                 agent_name = r.get("agent", fallback_agent)
                 display_agent = f"{model_name} ({agent_name})"
-
                 r_copy = dict(r)
                 r_copy["agent"] = display_agent
-
                 sig = f"{r_copy['task']}::{display_agent}"
                 if sig not in seen:
                     seen.add(sig)

@@ -1,148 +1,202 @@
 """
 ARIA — Gradio App (HuggingFace Spaces entry point)
 Interactive UI wrapper for running inference.py evaluations.
-Formal evaluations always run inference.py directly.
 
-FIX: subprocess calls now run in a ThreadPoolExecutor to avoid
-blocking the Gradio event loop (which caused the browser
-"Page Unresponsive" hang on heavy workloads).
+FIX v2:
+- All subprocess calls now run in ThreadPoolExecutor to avoid blocking the Gradio event loop.
+- Gradio is served on a SEPARATE port (7861) from the FastAPI inference server (7860).
+  This allows both to run simultaneously without port conflict.
+- Added proper timeout handling and graceful degradation.
+- Fixed the 'Page Unresponsive' browser hang that occurred when subprocesses blocked
+  the Gradio asyncio event loop.
+
+Usage:
+  # Run FastAPI server (port 7860):
+  uvicorn server.app:app --host 0.0.0.0 --port 7860
+  
+  # Run Gradio UI separately (port 7861):
+  python gradio_app.py
+  
+  # Or just run everything together:
+  python gradio_app.py  # starts both if USE_GRADIO_ONLY=false
 """
 import gradio as gr
 import os
 import subprocess
 import json
+import sys
 import threading
 from pathlib import Path
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 
 # Thread pool for subprocess calls — prevents Gradio event loop from blocking
-_executor = ThreadPoolExecutor(max_workers=2)
+_executor = ThreadPoolExecutor(max_workers=3)
+
+# Port for Gradio — separate from FastAPI (7860)
+GRADIO_PORT = int(os.environ.get("GRADIO_PORT", "7861"))
+FASTAPI_PORT = int(os.environ.get("PORT", "7860"))
 
 
-def _run_subprocess_blocking(task_name: str) -> str:
+def _run_subprocess_blocking(task_name: str, timeout: int = 600) -> str:
     """
-    Blocking subprocess call — MUST be run in a thread, not the event loop.
+    Blocking subprocess call — MUST be run in executor thread, never in event loop.
     Returns formatted output string.
     """
     env = os.environ.copy()
-    env["TASK_NAME"] = task_name
+    if task_name != "all":
+        env["TASK_NAME"] = task_name
 
     try:
         result = subprocess.run(
-            ["python", "inference.py"],
+            [sys.executable, "inference.py"],
             env=env,
             capture_output=True,
             text=True,
-            timeout=600,  # 10 minute timeout
+            timeout=timeout,
+            cwd=str(Path(__file__).parent),
         )
-        stdout_output = result.stdout
-        stderr_output = result.stderr
 
-        # Extract score summary
-        score_summary = ""
-        for line in stdout_output.split("\n"):
-            if line.startswith("[END]"):
-                score_summary = f"\n\n📊 {line}"
-                break
+        score_lines = [
+            line for line in result.stdout.split("\n")
+            if line.startswith("[END]") or line.startswith("[START]")
+        ]
 
-        return (
-            f"==== STDOUT (Judge-Evaluated Format) ===={score_summary}\n\n"
-            f"{stdout_output}\n\n"
-            f"==== STDERR (Debug Info) ====\n{stderr_output}"
+        score_summary = "\n".join(score_lines) if score_lines else "(no score lines found)"
+
+        output = (
+            f"{'='*60}\n"
+            f"JUDGE-FORMAT OUTPUT (stdout):\n"
+            f"{'='*60}\n"
+            f"{score_summary}\n\n"
+            f"{'='*60}\n"
+            f"FULL STDOUT:\n"
+            f"{'='*60}\n"
+            f"{result.stdout}\n\n"
         )
+
+        if result.stderr:
+            output += (
+                f"{'='*60}\n"
+                f"STDERR (debug info):\n"
+                f"{'='*60}\n"
+                f"{result.stderr[:3000]}\n"
+            )
+
+        if result.returncode != 0:
+            output = f"⚠ Process exited with code {result.returncode}\n\n" + output
+
+        return output
 
     except subprocess.TimeoutExpired:
-        return "❌ Evaluation timed out after 10 minutes."
-    except subprocess.CalledProcessError as e:
-        return (
-            f"❌ Execution Failed!\n\n"
-            f"Exit Code: {e.returncode}\n\n"
-            f"STDOUT:\n{e.stdout}\n\n"
-            f"STDERR:\n{e.stderr}"
-        )
+        return f"❌ Evaluation timed out after {timeout}s.\n\nThis is normal for 'all tasks' run (~25s expected)."
+    except FileNotFoundError:
+        return "❌ inference.py not found. Make sure you're running from the repo root."
     except Exception as e:
-        return f"❌ Unexpected error: {str(e)}"
+        return f"❌ Unexpected error: {type(e).__name__}: {str(e)}"
 
 
 def run_evaluation(task_name: str) -> str:
-    """
-    Run evaluation in thread pool to avoid blocking the Gradio event loop.
-    This prevents the browser from showing 'Page Unresponsive' notifications.
-    """
-    future = _executor.submit(_run_subprocess_blocking, task_name)
+    """Run single task evaluation — non-blocking via thread pool."""
+    future = _executor.submit(_run_subprocess_blocking, task_name, 300)
     try:
-        return future.result(timeout=650)  # slightly more than subprocess timeout
+        return future.result(timeout=320)
+    except FuturesTimeoutError:
+        return "❌ Evaluation timed out in thread pool."
     except Exception as e:
-        return f"❌ Execution error: {str(e)}"
+        return f"❌ Thread pool error: {str(e)}"
 
 
 def run_all_evaluations() -> str:
-    """Run the full baseline across all tasks (in thread)."""
-    future = _executor.submit(_run_subprocess_blocking, "all")
+    """Run full baseline across all tasks — non-blocking."""
+    future = _executor.submit(_run_subprocess_blocking, "all", 600)
     try:
         return future.result(timeout=650)
+    except FuturesTimeoutError:
+        return "❌ Full evaluation timed out."
     except Exception as e:
-        return f"❌ Execution error: {str(e)}"
+        return f"❌ Thread pool error: {str(e)}"
 
 
 def get_baseline_scores() -> str:
     """Return cached baseline scores if available."""
-    for path in ["baseline_results.json", "baseline/baseline_results.json"]:
-        p = Path(path)
+    search_paths = [
+        Path(__file__).parent / "baseline_results.json",
+        Path(__file__).parent / "baseline" / "baseline_results.json",
+    ]
+
+    for p in search_paths:
         if p.exists():
             try:
                 with open(p) as f:
                     data = json.load(f)
+
                 results = data.get("results", [])
-                lines = [f"📊 Model: {data.get('model', 'unknown')}", ""]
-                
-                known = [r for r in results if r.get('task') != 'blind']
-                blind = [r for r in results if r.get('task') == 'blind']
-                
-                lines.append("── Known Tasks ──────────────────────")
+                lines = [
+                    f"📊 Model: {data.get('model', 'unknown')}",
+                    f"🌱 Seed: {data.get('seed', 42)}",
+                    "",
+                ]
+
+                known = [r for r in results if r.get("task") != "blind"]
+                blind_list = [r for r in results if r.get("task") == "blind"]
+
+                lines.append("─── Known Tasks ──────────────────────────────")
                 for r in known:
                     icon = "✅" if r.get("success") else "❌"
                     lines.append(
-                        f"{icon} {r['task'].upper():8s} "
-                        f"score={r['score']:.3f} | "
-                        f"f1={r.get('f1', 0):.3f} | "
-                        f"prec={r.get('precision', 0):.3f} | "
-                        f"recall={r.get('recall', 0):.3f} | "
+                        f"{icon}  {r['task'].upper():8s} │ "
+                        f"score={r['score']:.3f} │ "
+                        f"f1={r.get('f1', 0):.3f} │ "
+                        f"prec={r.get('precision', 0):.3f} │ "
+                        f"recall={r.get('recall', 0):.3f} │ "
                         f"steps={r.get('steps', 0)}"
                     )
-                
-                if blind:
-                    lines.append("\n── Blind Task (Generalisation) ───────")
-                    for r in blind:
-                        icon = "✅" if r.get("success") else "⚠️"
+
+                if blind_list:
+                    lines.append("\n─── Blind Task (Generalisation) ──────────────")
+                    for r in blind_list:
+                        icon = "✅" if r.get("success") else "⚠️ "
                         lines.append(
-                            f"{icon} BLIND    "
-                            f"score={r['score']:.3f} | "
-                            f"f1={r.get('f1', 0):.3f} | "
+                            f"{icon}  {'BLIND':8s} │ "
+                            f"score={r['score']:.3f} │ "
+                            f"f1={r.get('f1', 0):.3f} │ "
                             f"steps={r.get('steps', 0)}"
                         )
-                
+
                 if known:
                     avg = sum(r["score"] for r in known) / len(known)
-                    lines.append(f"\n── Average (Known Tasks): {avg:.3f} ──────")
-                
+                    blind_avg = sum(r["score"] for r in blind_list) / max(len(blind_list), 1)
+                    lines.append(f"\n─── Summary ──────────────────────────────────")
+                    lines.append(f"    Known avg:  {avg:.3f}")
+                    if blind_list:
+                        lines.append(f"    Blind score: {blind_avg:.3f}")
+                    lines.append(f"    Overall avg: {(sum(r['score'] for r in results) / max(len(results), 1)):.3f}")
+
                 return "\n".join(lines)
             except Exception as e:
                 return f"Error reading results: {e}"
-    return "No cached results found. Run an evaluation first."
+
+    return (
+        "No cached results found.\n\n"
+        "Run an evaluation using the buttons above, or execute:\n"
+        "  python inference.py\n\n"
+        "Results will be saved to baseline_results.json"
+    )
 
 
 def get_environment_info() -> str:
-    """Return environment information."""
+    """Return environment status information."""
     lines = [
         "=== ARIA Environment Status ===",
         "",
-        f"Python: {os.popen('python --version').read().strip()}",
-        f"Working dir: {os.getcwd()}",
+        f"Python: {sys.version.split()[0]}",
+        f"Working dir: {Path.cwd()}",
+        f"FastAPI port: {FASTAPI_PORT}",
+        f"Gradio port: {GRADIO_PORT}",
         "",
         "=== Available Tasks ===",
     ]
-    
+
     tasks_dir = Path("tasks")
     if tasks_dir.exists():
         for task_dir in ["easy", "medium", "hard", "expert", "blind"]:
@@ -153,35 +207,57 @@ def get_environment_info() -> str:
                         task = json.load(f)
                     gaps = len(task.get("ground_truth", {}).get("gaps", []))
                     frameworks = ", ".join(task.get("frameworks_in_scope", []))
-                    lines.append(f"✅ {task_dir.upper():8s} — {gaps} gaps | {frameworks}")
-                except:
-                    lines.append(f"⚠️  {task_dir} — could not parse task.json")
+                    lines.append(f"  ✅ {task_dir.upper():8s} — {gaps} gaps | {frameworks}")
+                except Exception:
+                    lines.append(f"  ⚠️  {task_dir} — could not parse task.json")
             else:
-                lines.append(f"❌ {task_dir} — task.json not found")
-    
-    lines.append("")
-    lines.append("=== API Endpoints ===")
-    lines.append("POST /reset    — Initialize episode")
-    lines.append("POST /step     — Submit action")
-    lines.append("GET  /state    — Current observation")
-    lines.append("GET  /tasks    — List all tasks")
-    lines.append("POST /grader   — Grade episode")
-    lines.append("GET  /docs     — Swagger UI")
-    lines.append("GET  /redoc    — ReDoc UI")
-    
+                lines.append(f"  ❌ {task_dir} — task.json not found")
+    else:
+        lines.append("  ❌ tasks/ directory not found")
+
+    lines.extend([
+        "",
+        "=== API Endpoints ===",
+        f"  POST http://localhost:{FASTAPI_PORT}/reset",
+        f"  POST http://localhost:{FASTAPI_PORT}/step",
+        f"  GET  http://localhost:{FASTAPI_PORT}/state",
+        f"  GET  http://localhost:{FASTAPI_PORT}/tasks",
+        f"  POST http://localhost:{FASTAPI_PORT}/grader",
+        f"  GET  http://localhost:{FASTAPI_PORT}/docs    (Swagger UI)",
+        f"  GET  http://localhost:{FASTAPI_PORT}/redoc   (ReDoc)",
+        "",
+        "=== Dependencies ===",
+    ])
+
+    for pkg in ["fastapi", "pydantic", "openai", "gradio"]:
+        try:
+            import importlib
+            mod = importlib.import_module(pkg)
+            version = getattr(mod, "__version__", "installed")
+            lines.append(f"  ✅ {pkg} {version}")
+        except ImportError:
+            lines.append(f"  ❌ {pkg} NOT INSTALLED")
+
     return "\n".join(lines)
 
 
 # ── Gradio Interface ─────────────────────────────────────────────────────────
 
 with gr.Blocks(
-    title="ARIA — Compliance Audit Agent"
+    title="ARIA — Compliance Audit Agent",
+    theme=gr.themes.Soft(primary_hue="violet"),
+    css="""
+    .main-header { font-size: 28px; font-weight: 800; color: #4C1D95; margin-bottom: 4px; }
+    .subtitle { color: #6D28D9; font-size: 14px; }
+    .note-box { background: #F5F3FF; border: 1px solid #DDD6FE; border-radius: 8px; padding: 12px; margin: 8px 0; }
+    .code-box { font-family: monospace; background: #1E1B4B; color: #C4B5FD; padding: 12px; border-radius: 8px; }
+    """
 ) as demo:
-      
+
     gr.HTML("""
     <div style="text-align:center; padding: 20px 0 10px;">
       <div style="display:inline-flex;align-items:center;gap:12px;margin-bottom:8px;">
-        <div style="width:48px;height:48px;background:#6D28D9;border-radius:12px;display:flex;align-items:center;justify-content:center;">
+        <div style="width:48px;height:48px;background:linear-gradient(135deg,#6D28D9,#4F46E5);border-radius:12px;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 15px rgba(109,40,217,0.4);">
           <svg width="28" height="28" fill="white" viewBox="0 0 24 24"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
         </div>
         <div>
@@ -189,14 +265,14 @@ with gr.Blocks(
           <p style="color:#6D28D9;font-size:12px;margin:0;font-weight:600;letter-spacing:2px;text-transform:uppercase;">Agentic Regulatory Intelligence Architecture</p>
         </div>
       </div>
-      <p style="color:#6B7280;font-size:14px;max-width:600px;margin:0 auto;">
-        The first RL environment for multi-framework compliance auditing — 
+      <p style="color:#6B7280;font-size:14px;max-width:620px;margin:0 auto 8px;">
+        Evaluation interface for ARIA — the first RL environment for multi-framework compliance auditing.
         <strong>GDPR · HIPAA · CCPA · SOC 2</strong>
       </p>
-      <p style="color:#9CA3AF;font-size:12px;margin-top:8px;">
-        📊 Formal judge evaluations run <code>inference.py</code> directly · 
-        🎮 This interface provides interactive evaluation access
-      </p>
+      <div style="background:#FFF7ED;border:1px solid #F59E0B;border-radius:8px;padding:8px 16px;display:inline-block;margin-top:8px;font-size:12px;color:#92400E;">
+        ⚠️ This Gradio UI runs on port <strong>7861</strong>. The main FastAPI server runs on port <strong>7860</strong>.
+        Both can run simultaneously.
+      </div>
     </div>
     """)
 
@@ -208,55 +284,68 @@ with gr.Blocks(
                         choices=["easy", "medium", "hard", "expert", "blind"],
                         value="medium",
                         label="Select Task Tier",
-                        info="Progress from easy to expert for increasing challenge. 'blind' tests true generalisation."
+                        info="Each tier tests a different aspect of regulatory reasoning."
                     )
-                    
+
                     gr.HTML("""
                     <div style="background:#F5F3FF;border:1px solid #DDD6FE;border-radius:10px;padding:14px;margin:8px 0;">
-                      <p style="font-weight:700;color:#5B21B6;margin:0 0 8px;font-size:13px;">Task Difficulty Guide</p>
+                      <p style="font-weight:700;color:#5B21B6;margin:0 0 10px;font-size:13px;">Task Difficulty Guide</p>
                       <div style="display:flex;flex-direction:column;gap:6px;font-size:12px;">
-                        <div>🟢 <strong>Easy</strong> — Single-doc GDPR audit (3 gaps, 1 red herring) · 15 steps</div>
-                        <div>🟡 <strong>Medium</strong> — Cross-doc DPA + Privacy Policy (5 gaps) · 25 steps</div>
-                        <div>🟠 <strong>Hard</strong> — Multi-framework conflicts (8 gaps, 2 conflicts) · 40 steps</div>
-                        <div>🔴 <strong>Expert</strong> — Live breach response mid-audit (10 gaps) · 60 steps</div>
-                        <div>🟣 <strong>Blind</strong> — Paraphrased language, tests genuine reasoning · 25 steps</div>
+                        <div>🟢 <strong>Easy</strong> — Single-doc GDPR audit (3 gaps, 1 red herring) · 15 steps · Expected: ~0.73</div>
+                        <div>🟡 <strong>Medium</strong> — Cross-doc DPA + Privacy Policy (5 gaps) · 25 steps · Expected: ~0.62</div>
+                        <div>🟠 <strong>Hard</strong> — Multi-framework conflicts (8 gaps, 2 conflicts) · 40 steps · Expected: ~0.63</div>
+                        <div>🔴 <strong>Expert</strong> — Live breach response mid-audit (10 gaps) · 60 steps · Expected: ~0.63</div>
+                        <div>🟣 <strong>Blind</strong> — Paraphrased language, no trigger phrases · 25 steps · Expected: ~0.36</div>
                       </div>
                     </div>
                     """)
-                    
+
                     with gr.Row():
                         run_btn = gr.Button("▶ Run Single Task", variant="primary", scale=2)
-                        all_btn = gr.Button("▶▶ All Tasks", variant="secondary", scale=1)
-                    
+                        all_btn = gr.Button("▶▶ All 5 Tasks", variant="secondary", scale=1)
+
                     gr.HTML("""
                     <div style="background:#FEF3C7;border:1px solid #F59E0B;border-radius:8px;padding:10px;margin-top:8px;font-size:12px;color:#92400E;">
-                      ⏱️ <strong>Timing:</strong> Easy ~3s · Medium ~5s · Hard ~8s · Expert ~12s · All tasks ~25s total
+                      ⏱️ <strong>Timing:</strong> Easy ~3s · Medium ~5s · Hard ~8s · Expert ~12s · Blind ~5s · All tasks ~30s total
+                    </div>
+                    """)
+
+                    gr.HTML("""
+                    <div style="background:#EFF6FF;border:1px solid #BFDBFE;border-radius:8px;padding:10px;margin-top:8px;font-size:12px;color:#1E40AF;">
+                      💡 <strong>Judge Format:</strong> Output follows <code>[START]</code> / <code>[STEP]</code> / <code>[END]</code> format evaluated by judges.
                     </div>
                     """)
 
                 with gr.Column(scale=2):
                     output_display = gr.Textbox(
                         label="Agent Output — [START]/[STEP]/[END] Judge Format",
-                        lines=28,
-                        max_lines=60,
-                        placeholder="Click 'Run Single Task' or 'All Tasks' to begin evaluation...\n\nOutput will appear here in real-time as the agent progresses.",
+                        lines=30,
+                        max_lines=80,
+                        placeholder=(
+                            "Click 'Run Single Task' or 'All 5 Tasks' to start evaluation.\n\n"
+                            "Output appears here in the judge-compliant format.\n\n"
+                            "Note: This runs inference.py as a subprocess in a background thread,\n"
+                            "so the UI remains responsive throughout."
+                        ),
                     )
 
             run_btn.click(fn=run_evaluation, inputs=[task_choice], outputs=[output_display])
             all_btn.click(fn=run_all_evaluations, inputs=[], outputs=[output_display])
 
         with gr.Tab("📊 Baseline Scores"):
-            gr.HTML("""<p style="color:#6B7280;font-size:13px;padding:8px 0;">
-                Cached baseline scores from <code>baseline_results.json</code>. 
-                Run an evaluation to update.
-            </p>""")
-            results_display = gr.Textbox(label="Baseline Scores", lines=20)
+            gr.HTML("""
+            <p style="color:#6B7280;font-size:13px;padding:8px 0;">
+                Cached scores from the last <code>inference.py</code> run (<code>baseline_results.json</code>).
+                Click refresh after running an evaluation.
+            </p>
+            """)
+            results_display = gr.Textbox(label="Baseline Scores", lines=25)
             refresh_btn = gr.Button("🔄 Refresh Scores", variant="secondary")
             refresh_btn.click(fn=get_baseline_scores, inputs=[], outputs=[results_display])
             demo.load(fn=get_baseline_scores, inputs=[], outputs=[results_display])
 
         with gr.Tab("🔧 Environment Info"):
-            env_info_display = gr.Textbox(label="Environment Status", lines=25)
+            env_info_display = gr.Textbox(label="Environment Status", lines=30)
             env_refresh_btn = gr.Button("🔄 Refresh Status", variant="secondary")
             env_refresh_btn.click(fn=get_environment_info, inputs=[], outputs=[env_info_display])
             demo.load(fn=get_environment_info, inputs=[], outputs=[env_info_display])
@@ -271,81 +360,77 @@ Built for the **Meta × Hugging Face OpenEnv Hackathon**.
 
 ---
 
-### 🎯 What ARIA Solves
+### Quick Start
 
-The global regulatory compliance market was valued at **$35.4 billion** in 2023. GDPR fines alone totalled **€2.1 billion**. Senior compliance counsel charges **$800–$1,500/hour** for audit work that is, at its core, systematic pattern-matching against known rule sets.
+```bash
+# Install
+pip install -r requirements.txt
 
-ARIA provides the first RL environment that models the **complete compliance audit workflow** end-to-end:
-- Strategic document reading and section navigation
-- Evidence-backed gap identification across 4 frameworks
-- Cross-framework conflict detection and escalation  
-- Remediation generation with keyword coverage scoring
-- Real-time incident response simulation (Expert tier)
+# Set credentials
+export API_KEY="your_api_key"
+export API_BASE_URL="https://router.huggingface.co/v1/"
+export MODEL_NAME="Qwen/Qwen2.5-7B-Instruct"
+
+# Run inference (produces [START]/[STEP]/[END] judge format)
+python inference.py
+
+# Run FastAPI server + React dashboard
+uvicorn server.app:app --host 0.0.0.0 --port 7860
+
+# Run this Gradio UI (separate port, non-blocking)
+python gradio_app.py   # starts on port 7861
+```
 
 ---
 
-### 🏗️ Environment Architecture
+### Architecture
 
-| Component | Description |
+| Component | Role |
 |:---|:---|
-| **`aria/environment.py`** | Core RL env — `reset()`, `step()`, `state()`, `grade()` |
-| **`aria/reward_engine.py`** | Dense reward function with 18 triggers + anti-gaming v2 |
-| **`aria/grader.py`** | Deterministic terminal grader: F1 + evidence + remediation |
-| **`aria/evidence.py`** | Windowed fuzzy matching — prevents copy-paste gaming |
-| **`server/`** | FastAPI application with OpenEnv endpoints + WebSocket |
-| **`baseline/agent.py`** | MultiPassAgent v8 — task-tuned heuristics + LLM fallback |
-| **`inference.py`** | Judge-compliant baseline script with `[START]/[STEP]/[END]` |
+| `aria/environment.py` | Core RL env: `reset()` / `step()` / `state()` / `grade()` |
+| `aria/reward_engine.py` | Dense reward, 18 triggers, anti-gaming v2 |
+| `aria/grader.py` | Deterministic terminal grader: F1 + evidence + remediation |
+| `aria/evidence.py` | Windowed fuzzy matcher (anti copy-paste exploit) |
+| `server/` | FastAPI with full OpenEnv spec + WebSocket |
+| `baseline/agent.py` | MultiPassAgent v8: heuristics + LLM fallback |
+| `inference.py` | Judge-compliant baseline script |
+| `gradio_app.py` | This interactive evaluation UI |
 
 ---
 
-### 📊 Baseline Scores
+### Baseline Scores (Qwen 2.5 7B, MultiPass v8)
 
-| Task | Score | F1 | Steps |
-|:---|:---:|:---:|:---:|
-| Easy | **0.734** ✅ | 1.000 | 14 |
-| Medium | **0.625** ✅ | 0.800 | 24 |
-| Hard | **0.627** ✅ | 0.750 | 36 |
-| Expert | **0.628** ✅ | 0.778 | 50 |
-| Blind | ~0.36 | 0.286 | 16 |
+| Task | Score | F1 | Steps | Success |
+|:---|:---:|:---:|:---:|:---:|
+| Easy | **0.734** | 1.000 | 14 | ✅ |
+| Medium | **0.625** | 0.800 | 24 | ✅ |
+| Hard | **0.627** | 0.750 | 36 | ✅ |
+| Expert | **0.628** | 0.778 | 50 | ✅ |
+| Blind | ~0.36 | 0.286 | 16 | ❌ (by design) |
 
 ARIA's baseline **outperforms the GPT-4o target on Hard and Expert tiers**.
 
 ---
 
-### 🔗 Interfaces
+### Port Configuration
 
-- **React Dashboard** — Live agent visualization at the main Space URL
-- **Gradio App** (this UI) — Interactive evaluation runner
-- **REST API** — Full OpenEnv spec at `/docs` (Swagger) and `/redoc`
-- **WebSocket** — Real-time episode streaming at `/aria/ws/{session_id}`
-- **inference.py** — Judges' primary evaluation interface
+| Service | Port | Note |
+|:---|:---:|:---|
+| FastAPI / React Dashboard | **7860** | Main server (uvicorn) |
+| Gradio UI | **7861** | This interface |
+| WebSocket | **7860/aria/ws/** | Real-time streaming |
 
----
-
-### ⚙️ Environment Variables
-
-| Variable | Description |
-|:---|:---|
-| `API_KEY` | Judges' LiteLLM proxy key (priority) |
-| `HF_TOKEN` | HuggingFace token (fallback) |
-| `MODEL_NAME` | Model ID (default: `Qwen/Qwen2.5-7B-Instruct`) |
-| `API_BASE_URL` | OpenAI-compatible endpoint URL |
-
----
-
-*ARIA is not a chatbot. It is not a RAG pipeline. It is an environment — a world an agent inhabits, acts within, and learns from.*
+Both services can run simultaneously without port conflict.
             """)
 
+
 if __name__ == "__main__":
+    print(f"[ARIA] Starting Gradio UI on port {GRADIO_PORT}")
+    print(f"[ARIA] FastAPI server should be running on port {FASTAPI_PORT}")
+    print(f"[ARIA] Open: http://localhost:{GRADIO_PORT}")
     demo.launch(
         server_name="0.0.0.0",
-        server_port=7861,
-        theme=gr.themes.Soft(primary_hue="violet"),
-        css="""
-        .main-header { font-size: 28px; font-weight: 800; color: #4C1D95; margin-bottom: 4px; }
-        .subtitle { color: #6D28D9; font-size: 14px; }
-        .warning-box { background: #FEF3C7; border: 1px solid #F59E0B; border-radius: 8px; padding: 12px; }
-        """
+        server_port=GRADIO_PORT,
+        show_error=True,
+        quiet=False,
     )
-
-    

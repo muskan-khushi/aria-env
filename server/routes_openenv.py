@@ -1,4 +1,8 @@
-"""ARIA — FastAPI Routes (OpenEnv required endpoints) v2"""
+"""ARIA — FastAPI Routes (OpenEnv required endpoints) v3
+FIX: Use model_dump(mode='json') for proper enum serialization over WebSocket.
+This ensures active_findings with GapType/Severity/FindingStatus enums are
+serialized as plain strings instead of {'value': 'data_retention'} objects.
+"""
 from __future__ import annotations
 import json
 import asyncio
@@ -31,24 +35,25 @@ class GraderRequest(BaseModel):
 
 @router.post("/reset")
 async def reset(
-    req: ResetRequest = None, 
+    req: ResetRequest = None,
     x_session_id: str = Header(None, alias="X-Session-ID")
 ):
     if req is None:
         req = ResetRequest()
     try:
         sid, env = session_manager.create(
-            task_name=req.task_name, 
-            seed=req.seed, 
+            task_name=req.task_name,
+            seed=req.seed,
             forced_session_id=x_session_id or req.session_id
         )
-        
+
         obs = env.state()
-        obs_dict = obs.model_dump()
+        # FIX: Use mode='json' to serialize enums as plain strings
+        obs_dict = obs.model_dump(mode='json')
         obs_dict["session_id"] = sid
-        
+
         return obs_dict
-        
+
     except FileNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
@@ -63,34 +68,46 @@ async def step(req: StepRequest, x_session_id: str = Header(..., alias="X-Sessio
         raise HTTPException(status_code=404, detail=f"Session {x_session_id} not found. Call /reset first.")
     try:
         obs, reward, done, info = env.step(req.action)
+
+        # FIX: Use mode='json' to serialize all Pydantic enums as plain strings
+        # This ensures gap_type="data_retention" not gap_type={"value":"data_retention"}
+        obs_json = obs.model_dump(mode='json')
+
         payload = {
-            "observation": obs.model_dump(),
+            "observation": obs_json,
             "reward": reward,
             "done": done,
             "info": info,
         }
+
+        # FIX: Use mode='json' in broadcast payload too
+        action_json = req.action.model_dump(mode='json', exclude_none=True)
+
         # Broadcast to WebSocket subscribers
         asyncio.create_task(ws_manager.broadcast(x_session_id, {
             "type": "step",
             "step_number": obs.steps_taken,
-            "action": req.action.model_dump(),
+            "action": action_json,
             "reward": reward,
             "reward_reason": getattr(obs, 'last_reward_reason', ''),
-            "observation": obs.model_dump(),
+            "observation": obs_json,  # FIX: use pre-serialized version
         }))
+
         # Broadcast incident alert if fired this step
-        if (getattr(obs, 'active_incident', None) 
+        if (getattr(obs, 'active_incident', None)
                 and len(getattr(obs, 'incident_timeline', [])) == 1):
             asyncio.create_task(ws_manager.broadcast(x_session_id, {
                 "type": "incident_alert",
-                "incident": obs.active_incident.model_dump(),
+                "incident": obs.active_incident.model_dump(mode='json'),
                 "message": obs.active_incident.description,
             }))
+
         if done:
             asyncio.create_task(ws_manager.broadcast(x_session_id, {
                 "type": "episode_complete",
                 "session_id": x_session_id,
             }))
+
         return payload
     except RuntimeError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -104,7 +121,8 @@ async def state(x_session_id: str = Header(..., alias="X-Session-ID")):
     env = session_manager.get(x_session_id)
     if not env:
         raise HTTPException(status_code=404, detail=f"Session {x_session_id} not found.")
-    return env.state().model_dump()
+    # FIX: Use mode='json' for proper enum serialization
+    return env.state().model_dump(mode='json')
 
 # ─── GET /tasks ───────────────────────────────────────────────────────────────
 
@@ -139,27 +157,27 @@ async def list_tasks():
 
 @router.post("/grader")
 async def grader(
-    req: GraderRequest = None, 
+    req: GraderRequest = None,
     x_session_id: str = Header(None, alias="X-Session-ID")
 ):
     sid = (req.session_id if req and req.session_id else None) or x_session_id
     if not sid:
         raise HTTPException(
-            status_code=400, 
+            status_code=400,
             detail="Provide session_id in body or X-Session-ID header"
         )
     env = session_manager.get(sid)
     if not env:
         raise HTTPException(status_code=404, detail=f"Session {sid} not found.")
     result = env.grade()
-    return result.model_dump()
+    # FIX: Use mode='json' for proper enum serialization
+    return result.model_dump(mode='json')
 
 # ─── POST /baseline ───────────────────────────────────────────────────────────
 
 @router.post("/baseline")
 async def baseline():
     """Return cached baseline scores, or trigger fresh run if cache missing."""
-    # Check both possible locations
     for cache_path in [BASELINE_CACHE_ROOT, BASELINE_CACHE]:
         if cache_path.exists():
             try:
