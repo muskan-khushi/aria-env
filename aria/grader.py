@@ -1,7 +1,18 @@
 """
-ARIA — Terminal Grader
+ARIA — Terminal Grader  (v2 — exploit-hardened)
 Deterministic 0.0–1.0 scoring at episode end.
 Components: Gap F1 (40%), Evidence (25%), Remediation (20%), Severity (10%), Conflict (5%).
+
+v2 changes:
+- Conflict scoring now evaluates description quality via EvidenceChainValidator.score_conflict_description().
+  Escalating "GDPR conflicts with HIPAA because I said so" no longer scores full credit.
+  Score is weighted: 60% pair-match, 40% description quality.
+- Efficiency bonus redesigned: rewards agents that find MORE gaps per step, not agents
+  that quit early. New formula: (tp / max_steps) * 0.05 — rewards coverage efficiency.
+- Shotgun penalty: if submitted findings > 2.5 × len(gt_gaps), apply −0.05 to final score.
+  Prevents the "flag everything" spam strategy at the grader level.
+- Global FP rate penalty: if precision < 0.40, apply additional −0.05 to gap_f1 component.
+  This creates a steeper cliff for imprecise agents.
 """
 from __future__ import annotations
 from difflib import SequenceMatcher
@@ -25,6 +36,12 @@ class Grader:
     W_SEVERITY = 0.10
     W_CONFLICT = 0.05
 
+    # Anti-gaming thresholds
+    SHOTGUN_MULTIPLIER = 2.5   # findings > SHOTGUN_MULTIPLIER * gt_gaps → penalty
+    SHOTGUN_PENALTY = -0.05
+    LOW_PRECISION_THRESHOLD = 0.40
+    LOW_PRECISION_PENALTY = -0.05
+
     def __init__(self):
         self._validator = EvidenceChainValidator()
 
@@ -46,6 +63,10 @@ class Grader:
         f1_result = self.compute_f1(submitted_findings, gt_gaps)
         f1_component = f1_result.f1 * self.W_F1
 
+        # Low-precision penalty — makes imprecise agents pay more
+        if f1_result.precision < self.LOW_PRECISION_THRESHOLD and f1_result.tp > 0:
+            f1_component = max(0.0, f1_component + self.LOW_PRECISION_PENALTY)
+
         # Component 2: Evidence quality
         evidence_component = self._score_evidence(
             submitted_findings, submitted_citations, documents
@@ -61,14 +82,21 @@ class Grader:
             submitted_findings, gt_gaps
         ) * self.W_SEVERITY
 
-        # Component 5: Conflict detection
+        # Component 5: Conflict detection (with description quality)
         conflict_component = self._score_conflicts(
             escalated_conflicts, gt_conflicts
         ) * self.W_CONFLICT
 
-        # Efficiency bonus (small)
-        steps_remaining = max(0, max_steps - steps_taken)
-        efficiency_bonus = max(0.0, (steps_remaining / max_steps) * 0.05) if max_steps > 0 else 0.0
+        # Efficiency bonus v2: rewards coverage per step (not quitting early)
+        # Formula: (true_positives_found / max_steps) * 0.05
+        # An agent finding 3/3 gaps in 5 steps scores 3/15 * 0.05 = 0.010
+        # An agent finding 3/3 gaps in 14 steps scores 3/15 * 0.05 = 0.010
+        # An agent finding 0/3 gaps in 5 steps scores 0
+        # This rewards comprehensiveness, not laziness
+        if max_steps > 0:
+            efficiency_bonus = min(0.05, (f1_result.tp / max_steps) * 0.10)
+        else:
+            efficiency_bonus = 0.0
 
         raw_score = (
             f1_component
@@ -78,6 +106,14 @@ class Grader:
             + conflict_component
             + efficiency_bonus
         )
+
+        # Shotgun penalty: too many findings relative to ground truth
+        active_count = sum(
+            1 for f in submitted_findings if f.status.value != "RETRACTED"
+        )
+        if gt_gaps and active_count > self.SHOTGUN_MULTIPLIER * len(gt_gaps):
+            raw_score += self.SHOTGUN_PENALTY
+
         final_score = min(1.0, max(0.0, raw_score))
 
         return GradeResult(
@@ -148,7 +184,7 @@ class Grader:
         for finding in active:
             finding_citations = [c for c in citations if c.finding_id == finding.finding_id]
             if not finding_citations:
-                scores.append(0.0)  # no citation = 0
+                scores.append(0.0)
             else:
                 best = max(
                     self._validator.validate(finding, c, documents).score
@@ -176,7 +212,6 @@ class Grader:
                 scores.append(0.0)
                 continue
 
-            # Get canonical keywords for this finding
             canonical = []
             for g in gt_gaps:
                 if self._clause_match(finding.clause_ref, g.get("clause_ref", "")):
@@ -215,25 +250,47 @@ class Grader:
     def _score_conflicts(
         self, escalated: list[dict], gt_conflicts: list[dict]
     ) -> float:
-        """Precision/recall for conflict detection."""
+        """
+        Precision/recall for conflict detection, weighted by description quality.
+        
+        v2: Each correct pair match is multiplied by a description quality score
+        (0.0–1.0) from EvidenceChainValidator.score_conflict_description().
+        Pair weight: 60%, description quality: 40%.
+        This prevents "escalate any pair with no description" from scoring full credit.
+        """
         if not gt_conflicts:
             return 1.0 if not escalated else 0.5
 
-        matched = 0
+        matched_score = 0.0
         for e in escalated:
             fa = e.get("framework_a", "")
             fb = e.get("framework_b", "")
-            if any(
+            conflict_desc = e.get("conflict_desc", "")
+            
+            # Check if this pair exists in ground truth
+            pair_matched = any(
                 {c.get("framework_a"), c.get("framework_b")} == {fa, fb}
                 for c in gt_conflicts
-            ):
-                matched += 1
+            )
+            
+            if pair_matched:
+                # Score the description quality
+                desc_quality = self._validator.score_conflict_description(fa, fb, conflict_desc)
+                # Weighted score: pair match (0.6) + description quality (0.4)
+                matched_score += 0.6 + (desc_quality * 0.4)
 
-        recall = matched / len(gt_conflicts)
-        precision = matched / max(1, len(escalated))
-        if precision + recall == 0:
+        # Normalize to [0, 1]
+        max_possible = len(gt_conflicts) * 1.0  # max score if all pairs matched with perfect desc
+        if max_possible == 0:
+            return 1.0
+        
+        raw_recall = matched_score / max_possible
+        precision = matched_score / max(1.0, len(escalated))
+        
+        if raw_recall + precision == 0:
             return 0.0
-        return 2 * precision * recall / (precision + recall)
+        
+        return min(1.0, 2 * precision * raw_recall / (precision + raw_recall))
 
     # ─── Helpers ──────────────────────────────────────────────────────────────
 

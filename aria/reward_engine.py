@@ -1,9 +1,20 @@
 """
-ARIA — Reward Engine
-Dense reward computation for every action type with anti-gaming mechanisms.
+ARIA — Reward Engine  (v2 — anti-gaming)
+Dense reward computation for every action type with hardened anti-gaming mechanisms.
+
+v2 changes:
+- Spam window exploit FIXED: global FP budget replaces interval-spreading vulnerability.
+  After 5 total false positives in an episode, every subsequent FP costs −0.20 (not just
+  FPs in a 5-step window). Agents can no longer spread FPs every 6 steps to avoid the window.
+- Conflict description quality: escalate_conflict reward is now scaled by description quality
+  (0.6 pair + 0.4 desc quality), matching the grader. Maximum step reward remains 0.18.
+- Phase penalty increased: −0.08 (was −0.03) for submitting remediation during reading phase.
+  Phase ignorance should genuinely hurt, not be free money.
+- Reading section reward: first read of each section gives +0.01 (tiny positive signal).
+  This encourages agents to actually read before flagging, without making reading trivially
+  rewarding.
 """
 from __future__ import annotations
-from collections import deque
 from difflib import SequenceMatcher
 from aria.models import (
     ARIAAction, ARIAObservation, ARIAReward,
@@ -15,36 +26,35 @@ from aria.evidence import EvidenceChainValidator
 class RewardEngine:
     """
     Computes immediate per-step reward for every action.
-    All reward logic lives here — the environment calls compute() and gets back
-    an ARIAReward with scalar + human-readable reason.
     """
 
-    # Reward constants (matching the Bible spec exactly)
+    # Reward constants
     R_GAP_CORRECT = 0.20
-    R_GAP_PARTIAL = 0.12          # correct gap_type, approximate clause_ref
+    R_GAP_PARTIAL = 0.12
     R_GAP_SEVERITY_BONUS = 0.05
-    R_EVIDENCE_HIGH = 0.12        # evidence score ≥ 0.80
-    R_REMEDIATION_HIGH = 0.15     # keyword coverage ≥ 70%
-    R_CONFLICT = 0.18
+    R_EVIDENCE_HIGH = 0.12
+    R_REMEDIATION_HIGH = 0.15
+    R_CONFLICT_MAX = 0.18
     R_INCIDENT_CORRECT = 0.20
-    R_RETRACT_WRONG_FP = 0.05     # retracting a genuine false positive
+    R_RETRACT_WRONG_FP = 0.05
+    R_READ_SECTION = 0.01   # NEW: tiny positive for reading (encourages reading before flagging)
 
     P_FALSE_POSITIVE = -0.10
     P_RED_HERRING = -0.10
-    P_WRONG_RETRACTION = -0.08    # retracting a real finding
+    P_WRONG_RETRACTION = -0.08
     P_DUPLICATE = -0.02
     P_REDUNDANT_READ = -0.02
     P_MALFORMED = -0.05
-    P_SPAM_EXTRA = -0.10          # 3+ FPs in 5-step window
+    P_SPAM_EXTRA = -0.20     # INCREASED: now fires after global FP budget exceeded
     P_MISSED_DEADLINE = -0.25
-    P_PHASE_VIOLATION = -0.03
+    P_PHASE_VIOLATION = -0.08   # INCREASED from -0.03
 
-    SPAM_WINDOW = 5
-    SPAM_THRESHOLD = 3
+    # Global FP budget: after this many total FPs, every FP costs P_SPAM_EXTRA extra
+    GLOBAL_FP_BUDGET = 5
 
     def __init__(self):
         self._evidence_validator = EvidenceChainValidator()
-        self._recent_fp_steps: deque[int] = deque(maxlen=self.SPAM_WINDOW * 2)
+        self._total_fp_count: int = 0  # Global FP counter — cannot be gamed by timing
 
     def compute(
         self,
@@ -106,16 +116,16 @@ class RewardEngine:
                 reason=f"Section {loc} already viewed — redundant read",
                 action_result=ActionResult.ACCEPTED,
             )
+        # NEW: tiny positive for first read — encourages reading before auditing
         return ARIAReward(
-            reward=0.0,
-            reason=f"Reading {loc}",
+            reward=self.R_READ_SECTION,
+            reason=f"Reading {loc} (+{self.R_READ_SECTION:.2f} read bonus)",
             action_result=ActionResult.ACCEPTED,
         )
 
     def _handle_identify_gap(
         self, action: ARIAAction, obs: ARIAObservation, ground_truth: dict
     ) -> ARIAReward:
-        # Validate required fields
         if not action.clause_ref or not action.gap_type or not action.severity:
             return ARIAReward(
                 reward=self.P_MALFORMED,
@@ -133,7 +143,6 @@ class RewardEngine:
                     action_result=ActionResult.DUPLICATE,
                 )
 
-        # Match against ground truth
         gt_gaps = ground_truth.get("gaps", [])
         gt_red_herrings = ground_truth.get("red_herrings", [])
 
@@ -142,7 +151,6 @@ class RewardEngine:
         if match:
             reward = self.R_GAP_CORRECT
             reason = f"Correct {action.gap_type.value} gap in {action.clause_ref}"
-            # Severity bonus
             if action.severity and action.severity.value == match.get("severity"):
                 reward += self.R_GAP_SEVERITY_BONUS
                 reason += " (+severity bonus)"
@@ -160,23 +168,23 @@ class RewardEngine:
                 action_result=ActionResult.ACCEPTED,
             )
 
-        # Check for red herring
+        # False positive — check red herrings first
+        self._total_fp_count += 1
+        spam_penalty = self._global_spam_penalty()
+
         for rh in gt_red_herrings:
             if self._clause_fuzzy_match(action.clause_ref, rh.get("clause_ref", "")):
-                self._record_fp(obs.steps_taken)
-                spam_penalty = self._spam_penalty(obs.steps_taken)
                 return ARIAReward(
                     reward=self.P_RED_HERRING + spam_penalty,
-                    reason=f"Red herring — {rh.get('reason_not_a_gap', 'clause is compliant')}",
+                    reason=f"Red herring — {rh.get('reason_not_a_gap', 'clause is compliant')}"
+                           + (f" [spam budget exceeded: {spam_penalty:+.2f}]" if spam_penalty < 0 else ""),
                     action_result=ActionResult.ACCEPTED,
                 )
 
-        # Generic false positive
-        self._record_fp(obs.steps_taken)
-        spam_penalty = self._spam_penalty(obs.steps_taken)
         return ARIAReward(
             reward=self.P_FALSE_POSITIVE + spam_penalty,
-            reason=f"False positive: {action.clause_ref} is not a violation",
+            reason=f"False positive: {action.clause_ref} is not a violation"
+                   + (f" [spam budget exceeded: {spam_penalty:+.2f}]" if spam_penalty < 0 else ""),
             action_result=ActionResult.ACCEPTED,
         )
 
@@ -190,7 +198,6 @@ class RewardEngine:
                 action_result=ActionResult.REJECTED,
             )
 
-        # Check matching finding exists
         finding = next(
             (f for f in obs.active_findings if f.finding_id == action.finding_id), None
         )
@@ -215,7 +222,7 @@ class RewardEngine:
         if score >= 0.80:
             reward = self.R_EVIDENCE_HIGH
         elif score >= 0.50:
-            reward = self.R_EVIDENCE_HIGH * ((score - 0.50) / 0.30)  # scale 0.04–0.12
+            reward = self.R_EVIDENCE_HIGH * ((score - 0.50) / 0.30)
             reward = max(0.04, reward)
         else:
             reward = 0.01
@@ -246,7 +253,6 @@ class RewardEngine:
                 action_result=ActionResult.REJECTED,
             )
 
-        # Find canonical keywords for this gap
         gt_gaps = ground_truth.get("gaps", [])
         canonical_keywords = []
         for g in gt_gaps:
@@ -290,7 +296,6 @@ class RewardEngine:
                 action_result=ActionResult.REJECTED,
             )
 
-        # Is this a real finding or a false positive?
         gt_gaps = ground_truth.get("gaps", [])
         is_real = any(
             self._clause_fuzzy_match(finding.clause_ref, g.get("clause_ref", ""))
@@ -305,6 +310,8 @@ class RewardEngine:
                 action_result=ActionResult.ACCEPTED,
             )
         else:
+            # Correct retraction — also reduce FP counter (self-correction credit)
+            self._total_fp_count = max(0, self._total_fp_count - 1)
             return ARIAReward(
                 reward=self.R_RETRACT_WRONG_FP,
                 reason=f"Self-correction — {action.retract_finding_id} was a false positive",
@@ -325,17 +332,29 @@ class RewardEngine:
         fa = action.framework_a.value
         fb = action.framework_b.value
 
-        for conflict in gt_conflicts:
-            if {conflict.get("framework_a"), conflict.get("framework_b")} == {fa, fb}:
-                return ARIAReward(
-                    reward=self.R_CONFLICT,
-                    reason=f"Correct conflict identified: {fa} vs {fb}",
-                    action_result=ActionResult.ACCEPTED,
-                )
+        pair_matched = any(
+            {c.get("framework_a"), c.get("framework_b")} == {fa, fb}
+            for c in gt_conflicts
+        )
 
+        if not pair_matched:
+            return ARIAReward(
+                reward=self.P_FALSE_POSITIVE,
+                reason=f"No known conflict between {fa} and {fb} for this task",
+                action_result=ActionResult.ACCEPTED,
+            )
+
+        # Score description quality (v2: not just pair membership)
+        desc_quality = self._evidence_validator.score_conflict_description(
+            fa, fb, action.conflict_desc or ""
+        )
+        # Pair match: 0.6 weight, description quality: 0.4 weight
+        reward = self.R_CONFLICT_MAX * (0.6 + desc_quality * 0.4)
+
+        quality_label = "excellent" if desc_quality >= 0.75 else ("good" if desc_quality >= 0.40 else "weak")
         return ARIAReward(
-            reward=self.P_FALSE_POSITIVE,
-            reason=f"No known conflict between {fa} and {fb} for this task",
+            reward=round(reward, 4),
+            reason=f"Correct conflict {fa} vs {fb} — description quality: {quality_label} ({desc_quality:.0%})",
             action_result=ActionResult.ACCEPTED,
         )
 
@@ -373,7 +392,6 @@ class RewardEngine:
                 action_result=ActionResult.DUPLICATE,
             )
 
-        # Check deadline
         deadline_remaining = incident.deadline_steps - (obs.steps_taken - incident.discovered_at_step)
         if deadline_remaining < 0:
             return ARIAReward(
@@ -389,6 +407,16 @@ class RewardEngine:
         )
 
     # ─── Helpers ──────────────────────────────────────────────────────────────
+
+    def _global_spam_penalty(self) -> float:
+        """
+        Return extra penalty if global FP budget exceeded.
+        Unlike the old window-based approach, this cannot be gamed by
+        spreading FPs every 6 steps — it tracks total FPs for the episode.
+        """
+        if self._total_fp_count > self.GLOBAL_FP_BUDGET:
+            return self.P_SPAM_EXTRA
+        return 0.0
 
     def _match_gap(
         self, action: ARIAAction, gt_gaps: list[dict]
@@ -406,7 +434,6 @@ class RewardEngine:
                 exact = gap
                 break
             elif type_match and not clause_match:
-                # Right type, wrong but close clause — check approximate
                 ratio = SequenceMatcher(
                     None,
                     (action.clause_ref or "").lower(),
@@ -417,7 +444,6 @@ class RewardEngine:
         return exact, partial
 
     def _clause_fuzzy_match(self, a: str, b: str) -> bool:
-        """True if clause references match after normalisation."""
         def norm(s: str) -> str:
             return s.lower().replace(".", "").replace("_", "").replace("-", "").replace(" ", "")
         na, nb = norm(a), norm(b)
@@ -427,23 +453,11 @@ class RewardEngine:
         return ratio >= 0.85
 
     def _keyword_coverage(self, text: str, keywords: list[str]) -> float:
-        """Fraction of canonical keywords present in remediation text."""
         if not keywords:
             return 0.5
         text_lower = text.lower()
         hits = sum(1 for kw in keywords if kw.lower() in text_lower)
         return hits / len(keywords)
-
-    def _record_fp(self, step: int) -> None:
-        self._recent_fp_steps.append(step)
-
-    def _spam_penalty(self, current_step: int) -> float:
-        """Extra penalty if ≥3 FPs in the last 5-step window."""
-        recent = [s for s in self._recent_fp_steps
-                  if current_step - s <= self.SPAM_WINDOW]
-        if len(recent) >= self.SPAM_THRESHOLD:
-            return self.P_SPAM_EXTRA
-        return 0.0
 
     def check_phase_violation(
         self, action: ARIAAction, phase: str
@@ -452,5 +466,5 @@ class RewardEngine:
         if phase == "reading" and action.action_type == ActionType.SUBMIT_REMEDIATION:
             return self.P_PHASE_VIOLATION
         if phase == "remediating" and action.action_type == ActionType.IDENTIFY_GAP:
-            return self.P_PHASE_VIOLATION * 0.5  # softer warning
+            return self.P_PHASE_VIOLATION * 0.5
         return 0.0

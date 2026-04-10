@@ -1,0 +1,164 @@
+{
+  "task_id": "blind_1",
+  "difficulty": "medium",
+  "title": "Blind Generalization Audit — CloudSync Data Platform",
+  "description": "This task uses paraphrased policy language to test genuine regulatory reasoning, not pattern matching on known trigger phrases. No ground-truth trigger phrases are shared in inference scripts for this task.",
+  "company_profile": {
+    "name": "CloudSync Data Platform",
+    "industry": "B2B Data Integration SaaS",
+    "size": "120 employees",
+    "data_types": ["consumer_pii", "behavioral_data", "financial_identifiers", "eu_user_data"],
+    "operates_in": ["EU", "California", "US"]
+  },
+  "frameworks_in_scope": ["GDPR", "CCPA"],
+  "applicable_articles": {
+    "GDPR": ["Article 5(1)(b)", "Article 5(1)(e)", "Article 7", "Article 33", "Article 44"],
+    "CCPA": ["1798.120", "1798.135", "1798.100"]
+  },
+  "documents": [
+    {
+      "doc_id": "terms_of_service",
+      "title": "CloudSync Terms of Service and Privacy Disclosure v1.4",
+      "sections": [
+        {
+          "section_id": "s1",
+          "title": "Information We Gather",
+          "content": "CloudSync gathers contact details, behavioral usage patterns, financial identifiers required for billing, and any supplementary information our systems can access at the time of integration. Our integration engine captures the broadest possible dataset to ensure no useful signal is missed during onboarding.",
+          "subsections": []
+        },
+        {
+          "section_id": "s2",
+          "title": "How We Use Your Information",
+          "content": "Information collected is used to: (1) operate the CloudSync integration pipeline, (2) conduct internal research and platform analytics, (3) share with commercial partners for audience enrichment programs, and (4) fulfill any other legitimate operational purposes that CloudSync's management team determines appropriate from time to time.",
+          "subsections": []
+        },
+        {
+          "section_id": "s3",
+          "title": "Storage Duration",
+          "content": "Billing records are kept for seven years as required by financial regulations. Personal usage logs and behavioral profiles are kept without a defined end date to support our ongoing research initiatives. We do not currently have a scheduled deletion process for historical behavioral data.",
+          "subsections": []
+        },
+        {
+          "section_id": "s4",
+          "title": "Cross-Border Processing",
+          "content": "CloudSync's infrastructure is hosted in the United States. Information from users in the European Economic Area is routed through our US servers for processing. We ensure appropriate care is taken by our engineering and data teams when handling such information.",
+          "subsections": []
+        },
+        {
+          "section_id": "s5",
+          "title": "Your Privacy Choices",
+          "content": "CloudSync shares behavioral profiles with advertising partners, which under California law may constitute a sale of personal information. To register your preference, please send a written request to privacy@cloudsync.io with the subject line 'Opt Out Request'. We do not offer an online preference center at this time.",
+          "subsections": []
+        },
+        {
+          "section_id": "s6",
+          "title": "Security Incident Procedures",
+          "content": "Should a data security event occur, CloudSync will conduct an internal assessment and communicate with affected parties and relevant authorities within a timeframe our legal team considers reasonable given the circumstances. We do not commit to a specific notification window in advance.",
+          "subsections": []
+        }
+      ]
+    }
+  ],
+  "ground_truth": {
+    "gaps": [
+      {
+        "gap_id": "gap_1",
+        "clause_ref": "terms_of_service.s1",
+        "gap_type": "data_minimization",
+        "severity": "high",
+        "framework": "GDPR",
+        "article": "Article 5(1)(c)",
+        "description": "Capturing the broadest possible dataset rather than only necessary data violates GDPR Article 5(1)(c) data minimisation principle.",
+        "evidence_passage": "captures the broadest possible dataset to ensure no useful signal is missed during onboarding",
+        "evidence_location": "terms_of_service.s1",
+        "canonical_remediation_keywords": ["minimum necessary", "strictly necessary", "limited to", "specific fields", "data minimization", "only collect"]
+      },
+      {
+        "gap_id": "gap_2",
+        "clause_ref": "terms_of_service.s2",
+        "gap_type": "purpose_limitation",
+        "severity": "high",
+        "framework": "GDPR",
+        "article": "Article 5(1)(b)",
+        "description": "Open-ended 'any other legitimate operational purposes' clause violates purpose limitation — processing purposes must be specified, explicit and legitimate under Article 5(1)(b).",
+        "evidence_passage": "any other legitimate operational purposes that CloudSync's management team determines appropriate from time to time",
+        "evidence_location": "terms_of_service.s2",
+        "canonical_remediation_keywords": ["specific", "explicit", "legitimate purpose", "specified in advance", "list all purposes", "remove open-ended"]
+      },
+      {
+        "gap_id": "gap_3",
+        "clause_ref": "terms_of_service.s3",
+        "gap_type": "data_retention",
+        "severity": "high",
+        "framework": "GDPR",
+        "article": "Article 5(1)(e)",
+        "description": "Behavioral profiles kept without a defined end date violates the storage limitation principle — all personal data categories require a defined maximum retention period.",
+        "evidence_passage": "Personal usage logs and behavioral profiles are kept without a defined end date to support our ongoing research initiatives.",
+        "evidence_location": "terms_of_service.s3",
+        "canonical_remediation_keywords": ["maximum retention period", "delete after", "specific period", "no longer than necessary", "defined end date", "scheduled deletion"]
+      },
+      {
+        "gap_id": "gap_4",
+        "clause_ref": "terms_of_service.s4",
+        "gap_type": "cross_border_transfer",
+        "severity": "high",
+        "framework": "GDPR",
+        "article": "Article 44",
+        "description": "'Appropriate care by engineering teams' is not a valid GDPR Chapter V transfer mechanism. Standard Contractual Clauses or adequacy decision required for EU-US transfers.",
+        "evidence_passage": "We ensure appropriate care is taken by our engineering and data teams when handling such information.",
+        "evidence_location": "terms_of_service.s4",
+        "canonical_remediation_keywords": ["standard contractual clauses", "adequacy decision", "appropriate safeguards", "Article 46", "transfer mechanism", "Data Privacy Framework"]
+      },
+      {
+        "gap_id": "gap_5",
+        "clause_ref": "terms_of_service.s5",
+        "gap_type": "opt_out_mechanism",
+        "severity": "high",
+        "framework": "CCPA",
+        "article": "1798.135",
+        "description": "Email-only opt-out for sale of personal information fails CCPA 1798.135 which requires a clear and conspicuous 'Do Not Sell or Share My Personal Information' link.",
+        "evidence_passage": "To register your preference, please send a written request to privacy@cloudsync.io with the subject line 'Opt Out Request'. We do not offer an online preference center at this time.",
+        "evidence_location": "terms_of_service.s5",
+        "canonical_remediation_keywords": ["Do Not Sell or Share", "homepage link", "automated opt-out", "1798.135", "clear and conspicuous", "online mechanism"]
+      },
+      {
+        "gap_id": "gap_6",
+        "clause_ref": "terms_of_service.s6",
+        "gap_type": "breach_notification",
+        "severity": "high",
+        "framework": "GDPR",
+        "article": "Article 33",
+        "description": "Vague 'timeframe our legal team considers reasonable' fails GDPR Article 33's mandatory 72-hour supervisory authority notification requirement.",
+        "evidence_passage": "communicate with affected parties and relevant authorities within a timeframe our legal team considers reasonable given the circumstances. We do not commit to a specific notification window in advance.",
+        "evidence_location": "terms_of_service.s6",
+        "canonical_remediation_keywords": ["72 hours", "without undue delay", "supervisory authority", "Article 33", "specific timeline", "within 72"]
+      }
+    ],
+    "red_herrings": [
+      {
+        "clause_ref": "terms_of_service.s3",
+        "reason_not_a_gap": "The seven-year retention for billing records is compliant — it satisfies a legal obligation under financial recordkeeping regulations per Article 6(1)(c) GDPR exception."
+      },
+      {
+        "clause_ref": "terms_of_service.s2",
+        "reason_not_a_gap_for": "sharing with commercial partners",
+        "reason_not_a_gap": "Sharing with commercial partners for audience enrichment IS a gap (purpose_limitation) — but flagging it as 'consent_mechanism' would be incorrect as the primary issue is purpose, not consent basis."
+      }
+    ],
+    "conflicts": [
+      {
+        "conflict_id": "conflict_1",
+        "framework_a": "GDPR",
+        "framework_b": "CCPA",
+        "description": "GDPR requires opt-in consent before sharing personal data with advertising partners (Article 6/7). CCPA allows sharing until consumer opts out (1798.120). A unified policy must apply opt-in for EU users and opt-out for California users.",
+        "governing_clause": "terms_of_service.s2",
+        "resolution": "Implement jurisdiction-aware consent: opt-in flow for EU users, opt-out mechanism for California users, with geolocation detection."
+      }
+    ]
+  },
+  "incident": null,
+  "max_steps": 25,
+  "seed": 99,
+  "is_generated": false,
+  "_note": "BLIND TASK: This task uses paraphrased language that does not match trigger phrases in baseline/agent.py. It is specifically designed to test genuine regulatory reasoning. Agents must read sections and identify gaps from first principles, not pattern matching."
+}
