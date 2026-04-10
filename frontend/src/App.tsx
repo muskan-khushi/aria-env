@@ -1,8 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { 
   FileText, Activity, Sparkles, Settings2, AlertOctagon, Trophy, History, Siren, Download, X,
-  BookOpen, Code2, Zap, Globe, Shield, Database, GitBranch, Terminal, ExternalLink, ChevronDown,
-  BarChart3, Eye, RefreshCw, Info
+  Shield, Code2, Home,
 } from 'lucide-react';
 
 import RewardChart from './components/RewardChart';
@@ -13,6 +12,7 @@ import EpisodeViewer from './components/EpisodeViewer';
 import ReportModal from './components/ReportModal';
 import FrameworkExplorer from './components/FrameworkExplorer';
 import APIReference from './components/APIReference';
+import LandingPage from './components/LandingPage';
 
 const API_BASE = window.location.origin;
 const WS_PROTOCOL = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -20,8 +20,10 @@ const WS_URL = `${WS_PROTOCOL}//${window.location.host}/aria/ws`;
 const FIXED_SESSION_ID = "hackathon_demo_001";
 
 type TabType = 'monitor' | 'leaderboard' | 'replay' | 'frameworks' | 'api';
+type AppView = 'landing' | 'dashboard';
 
 export default function App() {
+  const [appView, setAppView] = useState<AppView>('landing');
   const [activeTab, setActiveTab] = useState<TabType>('monitor');
 
   const [isDemoRunning, setIsDemoRunning] = useState(false);
@@ -29,6 +31,7 @@ export default function App() {
   const [activeSection, setActiveSection] = useState<string | null>(null);
   const [logs, setLogs] = useState<string[]>(["Awaiting run initialization..."]);
   const [chartData, setChartData] = useState([{ step: 0, reward: 0, cumulative: 0 }]);
+  // FIX: Store full finding objects from WebSocket observation
   const [findings, setFindings] = useState<any[]>([]);
   const [currentDoc, setCurrentDoc] = useState<any>(null);
   const [currentPhase, setCurrentPhase] = useState<string>("reading");
@@ -43,21 +46,12 @@ export default function App() {
   const [steerSending, setSteerSending] = useState(false);
   const [wsConnected, setWsConnected] = useState(false);
   const [totalStepsRun, setTotalStepsRun] = useState(0);
-  const [currentTaskMeta, setCurrentTaskMeta] = useState<any>(null);
 
   const logEndRef = useRef<HTMLDivElement>(null);
   const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const wsRef = useRef<WebSocket | null>(null);
 
   useEffect(() => { logEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [logs]);
-
-  // Fetch task metadata on startup
-  useEffect(() => {
-    fetch(`${API_BASE}/tasks`)
-      .then(r => r.json())
-      .then(data => setCurrentTaskMeta(data))
-      .catch(() => {});
-  }, []);
 
   useEffect(() => {
     const connectWs = () => {
@@ -71,7 +65,6 @@ export default function App() {
 
       socket.onclose = () => {
         setWsConnected(false);
-        // Reconnect after 3s
         setTimeout(connectWs, 3000);
       };
       
@@ -79,8 +72,7 @@ export default function App() {
         if ('speechSynthesis' in window) {
           window.speechSynthesis.cancel();
           const msg = new SpeechSynthesisUtterance(text);
-          msg.rate = 1.0;
-          msg.pitch = 0.9;
+          msg.rate = 1.0; msg.pitch = 0.9;
           window.speechSynthesis.speak(msg);
         }
       };
@@ -91,32 +83,41 @@ export default function App() {
         if (data.type === 'step') {
           setIsDemoRunning(true);
           const obs = data.observation;
-          setLogs(prev => [data.reward_reason || `Action: ${data.action.action_type}`, ...prev.slice(0, 199)]);
+          setLogs(prev => [data.reward_reason || `Action: ${data.action?.action_type || 'unknown'}`, ...prev.slice(0, 199)]);
           setChartData(prev => [...prev, { 
             step: data.step_number, 
             reward: data.reward, 
             cumulative: obs.cumulative_reward 
           }]);
-          setFindings(obs.active_findings);
+          
+          // FIX: Properly extract active_findings from observation
+          const activeFindingsRaw = obs.active_findings || [];
+          setFindings(activeFindingsRaw);
+          
           setCurrentPhase(obs.phase || "reading");
           setCumulativeReward(obs.cumulative_reward || 0);
           setTotalStepsRun(data.step_number);
 
-          if (data.action.action_type === 'request_section') {
+          if (data.action?.action_type === 'request_section') {
             setActiveSection(data.action.section_id);
           }
           
-          if (data.action.action_type === 'identify_gap') {
+          // Update doc from observation
+          if (obs.documents && obs.documents.length > 0 && !currentDoc) {
+            setCurrentDoc(obs.documents[0]);
+          }
+          
+          if (data.action?.action_type === 'identify_gap') {
             speak(`Auditor has flagged a potential gap: ${data.action.gap_type?.replace(/_/g, ' ')}`);
           }
 
           setReplaySteps(prev => [...prev, {
             step: data.step_number,
-            action: data.action.action_type + (data.action.clause_ref ? ` (${data.action.clause_ref})` : ''),
+            action: (data.action?.action_type || 'unknown') + (data.action?.clause_ref ? ` (${data.action.clause_ref})` : ''),
             reward: data.reward,
-            desc: data.reward_reason || `Action: ${data.action.action_type}`,
-            highlight: data.action.action_type === 'request_section' ? data.action.section_id : null,
-            flag: data.action.action_type === 'identify_gap' ? data.action.clause_ref?.split('.')[1] : null,
+            desc: data.reward_reason || `Action: ${data.action?.action_type || 'unknown'}`,
+            highlight: data.action?.action_type === 'request_section' ? data.action.section_id : null,
+            flag: data.action?.action_type === 'identify_gap' ? data.action.clause_ref?.split('.')[1] : null,
             rawJson: data
           }]);
         }
@@ -131,6 +132,17 @@ export default function App() {
           setIsDemoRunning(false);
           setIsDemoComplete(true);
           setLogs(prev => ["🏁 Episode Complete. Final Grade available in Leaderboard.", ...prev]);
+          
+          // FIX: Fetch final grade to get complete findings state
+          fetch(`${API_BASE}/grader`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-Session-ID': FIXED_SESSION_ID },
+          })
+            .then(r => r.json())
+            .then(grade => {
+              console.log("Final grade:", grade);
+            })
+            .catch(console.error);
         }
       };
     };
@@ -146,6 +158,7 @@ export default function App() {
     setIsDemoComplete(false);
     setLogs(["Requesting environment reset..."]);
     sectionRefs.current = {};
+    setFindings([]); // Clear previous findings
     
     try {
       const response = await fetch(`${API_BASE}/reset`, {
@@ -158,7 +171,7 @@ export default function App() {
       });
       
       const initialObs = await response.json();
-      setCurrentDoc(initialObs.documents[0]);
+      setCurrentDoc(initialObs.documents?.[0] || null);
       setReplaySteps([]);
       setChartData([{ step: 0, reward: 0, cumulative: 0 }]);
       setFindings([]);
@@ -204,6 +217,11 @@ export default function App() {
     setSteerSending(false);
   };
 
+  // Show landing page first
+  if (appView === 'landing') {
+    return <LandingPage onEnterDashboard={() => setAppView('dashboard')} />;
+  }
+
   const canDownload = findings.length > 0 || isDemoComplete || replaySteps.length > 0;
 
   const TASK_DIFFICULTY_COLOR: Record<string, string> = {
@@ -216,57 +234,72 @@ export default function App() {
   };
 
   const navItems: { id: TabType; label: string; icon: any }[] = [
-    { id: 'monitor', label: 'Live Monitor', icon: Activity },
+    { id: 'monitor', label: 'Monitor', icon: Activity },
     { id: 'replay', label: 'Replay', icon: History },
-    { id: 'leaderboard', label: 'Leaderboard', icon: Trophy },
+    { id: 'leaderboard', label: 'Scores', icon: Trophy },
     { id: 'frameworks', label: 'Frameworks', icon: Shield },
-    { id: 'api', label: 'API Reference', icon: Code2 },
+    { id: 'api', label: 'API', icon: Code2 },
   ];
 
   return (
     <div className={`min-h-screen p-4 flex flex-col transition-colors duration-500 ${activeIncident ? 'bg-pastel-blush' : 'bg-aria-bg'}`}>
       <div className={`w-full max-w-[1600px] mx-auto flex flex-col flex-1 matte-panel p-5 transition-all duration-500 ${showTaskModal || activeIncident ? 'scale-[0.98] blur-[2px] opacity-60' : ''}`}>
         
-        {/* Header */}
-        <header className="flex justify-between items-center mb-5 pb-4 border-b border-aria-border relative flex-shrink-0 gap-4">
-          {/* Logo */}
-          <div className="flex items-center gap-3 min-w-fit">
-            <div className="w-9 h-9 rounded-xl bg-aria-accent flex items-center justify-center shadow-premium">
-              <Activity className="text-white w-5 h-5" />
-            </div>
-            <div>
-              <h1 className="text-xl font-bold tracking-tight text-aria-textMain leading-none">ARIA</h1>
-              <p className="text-[10px] text-aria-textMuted font-medium tracking-widest uppercase leading-none mt-0.5">Regulatory Intelligence</p>
-            </div>
+        {/* Header - Fixed layout to prevent congestion */}
+        <header className="flex justify-between items-center mb-5 pb-4 border-b border-aria-border relative flex-shrink-0 gap-2">
+          {/* Logo - left */}
+          <div className="flex items-center gap-2 min-w-[120px]">
+            <button
+              onClick={() => setAppView('landing')}
+              className="flex items-center gap-2 hover:opacity-80 transition-opacity"
+              title="Back to home"
+            >
+              <div className="w-8 h-8 rounded-lg bg-aria-accent flex items-center justify-center shadow-premium flex-shrink-0">
+                <Activity className="text-white w-4 h-4" />
+              </div>
+              <div className="hidden sm:block">
+                <h1 className="text-base font-bold tracking-tight text-aria-textMain leading-none">ARIA</h1>
+                <p className="text-[9px] text-aria-textMuted font-medium tracking-widest uppercase leading-none mt-0.5 hidden lg:block">Regulatory Intelligence</p>
+              </div>
+            </button>
           </div>
 
-          {/* Nav */}
-          <nav className="flex gap-1 text-xs font-bold text-aria-textMuted uppercase tracking-widest absolute left-1/2 -translate-x-1/2">
+          {/* Nav - center, compact */}
+          <nav className="flex gap-0.5 text-xs font-bold text-aria-textMuted uppercase tracking-wide">
+            {/* Home button */}
+            <button
+              onClick={() => setAppView('landing')}
+              className="pb-1.5 pt-1.5 px-2 transition-all flex items-center gap-1 rounded-lg hover:text-aria-textMain hover:bg-gray-100"
+              title="Home"
+            >
+              <Home className="w-3.5 h-3.5" />
+            </button>
             {navItems.map(({ id, label, icon: Icon }) => (
               <button
                 key={id}
                 onClick={() => setActiveTab(id)}
-                className={`pb-1.5 pt-1.5 px-3 transition-all flex items-center gap-1.5 rounded-lg ${
+                className={`pb-1.5 pt-1.5 px-2.5 transition-all flex items-center gap-1 rounded-lg whitespace-nowrap ${
                   activeTab === id 
                     ? 'text-aria-accent bg-aria-accentLight' 
                     : 'hover:text-aria-textMain hover:bg-gray-100'
                 }`}
               >
-                <Icon className="w-3.5 h-3.5" /> {label}
+                <Icon className="w-3 h-3 flex-shrink-0" />
+                <span className="hidden md:inline">{label}</span>
               </button>
             ))}
           </nav>
 
-          {/* Right controls */}
-          <div className="flex items-center gap-2 text-sm font-bold text-aria-textMuted min-w-fit">
-            {/* WS status */}
-            <div className={`flex items-center gap-1.5 px-2 py-1 rounded-full text-[10px] font-bold border ${wsConnected ? 'text-emerald-700 bg-emerald-50 border-emerald-200' : 'text-gray-500 bg-gray-100 border-gray-200'}`}>
+          {/* Right controls - compact */}
+          <div className="flex items-center gap-1.5 min-w-[160px] justify-end">
+            {/* WS status dot */}
+            <div className={`flex items-center gap-1 px-2 py-1 rounded-full text-[9px] font-bold border ${wsConnected ? 'text-emerald-700 bg-emerald-50 border-emerald-200' : 'text-gray-500 bg-gray-100 border-gray-200'}`}>
               <div className={`w-1.5 h-1.5 rounded-full ${wsConnected ? 'bg-emerald-500 animate-pulse' : 'bg-gray-400'}`} />
-              {wsConnected ? 'LIVE' : 'OFFLINE'}
+              <span className="hidden sm:inline">{wsConnected ? 'LIVE' : 'OFF'}</span>
             </div>
 
             {/* Task badge */}
-            <div className={`px-2 py-1 rounded-full text-[10px] font-bold border ${TASK_DIFFICULTY_COLOR[selectedTask] || 'text-gray-500 bg-gray-100 border-gray-200'}`}>
+            <div className={`px-1.5 py-0.5 rounded text-[9px] font-bold border hidden sm:block ${TASK_DIFFICULTY_COLOR[selectedTask] || 'text-gray-500 bg-gray-100 border-gray-200'}`}>
               {selectedTask.toUpperCase()}
             </div>
 
@@ -274,30 +307,32 @@ export default function App() {
             <button
               onClick={() => setShowReportModal(true)}
               disabled={!canDownload}
-              title={canDownload ? 'Download audit report as PDF' : 'Run an episode first'}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-aria-border hover:bg-gray-50 transition text-aria-textMain disabled:opacity-30 disabled:cursor-not-allowed text-xs"
+              title="Download audit report"
+              className="p-1.5 rounded-lg border border-aria-border hover:bg-gray-50 transition text-aria-textMain disabled:opacity-30 disabled:cursor-not-allowed"
             >
               <Download className="w-3.5 h-3.5" />
-              Report
             </button>
 
+            {/* Task config */}
             <button
               onClick={() => setShowTaskModal(true)}
               disabled={isDemoRunning}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-lg hover:bg-gray-100 transition text-aria-textMain disabled:opacity-50 text-xs"
+              className="p-1.5 rounded-lg hover:bg-gray-100 transition text-aria-textMain disabled:opacity-50"
+              title="Configure task"
             >
-              <Settings2 className="w-3.5 h-3.5" /> Task
+              <Settings2 className="w-3.5 h-3.5" />
             </button>
 
+            {/* Launch */}
             <button
               onClick={handleLaunch}
               disabled={isDemoRunning}
-              className="flex items-center gap-2 bg-aria-accent text-white px-4 py-2 rounded-lg hover:bg-violet-600 transition shadow-premium disabled:opacity-50 text-xs font-bold uppercase tracking-wider"
+              className="flex items-center gap-1.5 bg-aria-accent text-white px-3 py-1.5 rounded-lg hover:bg-violet-600 transition shadow-premium disabled:opacity-50 text-xs font-bold uppercase tracking-wider whitespace-nowrap"
             >
               {isDemoRunning ? (
-                <><RefreshCw className="w-3.5 h-3.5 animate-spin" /> Running...</>
+                <><div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" /></>
               ) : (
-                <><Sparkles className="w-3.5 h-3.5" /> Launch</>
+                <><Sparkles className="w-3 h-3" /> Run</>
               )}
             </button>
           </div>
@@ -334,12 +369,13 @@ export default function App() {
                       </div>
                       <div className="flex flex-col gap-3 font-serif">
                         {currentDoc.sections.map((sec: any) => {
-                          const isFlagged = findings.some(f => f.clause_ref?.includes(sec.section_id));
-                          const isActive = activeSection === sec.section_id;
+                          const secId = sec.section_id || sec.id;
+                          const isFlagged = findings.some(f => f.clause_ref?.includes(secId));
+                          const isActive = activeSection === secId;
                           return (
                             <div
-                              key={sec.section_id}
-                              ref={(el) => { sectionRefs.current[sec.section_id] = el; }}
+                              key={secId}
+                              ref={(el) => { sectionRefs.current[secId] = el; }}
                               className={`p-4 rounded-xl transition-all duration-500 ${
                                 isFlagged
                                   ? 'bg-pastel-blush border border-pastel-blushBorder shadow-sm'
@@ -353,7 +389,7 @@ export default function App() {
                                 <div className="flex items-center gap-1 flex-shrink-0">
                                   {isFlagged && <span className="text-[9px] font-bold text-pastel-blushText bg-pastel-blush border border-pastel-blushBorder px-1.5 py-0.5 rounded-full">FLAGGED</span>}
                                   {isActive && !isFlagged && <span className="text-[9px] font-bold text-pastel-peachText bg-pastel-peach border border-pastel-peachBorder px-1.5 py-0.5 rounded-full">ACTIVE</span>}
-                                  <span className="text-[9px] font-mono text-aria-textMuted">{sec.section_id}</span>
+                                  <span className="text-[9px] font-mono text-aria-textMuted">{secId}</span>
                                 </div>
                               </div>
                               <p className={`text-xs leading-relaxed ${
@@ -373,7 +409,7 @@ export default function App() {
                       </div>
                       <div>
                         <p className="text-sm font-semibold text-aria-textMain mb-1">No Document Loaded</p>
-                        <p className="text-xs italic">Select a task and click Launch to load regulatory documents into context.</p>
+                        <p className="text-xs italic">Select a task and click Run to load regulatory documents.</p>
                       </div>
                       <button
                         onClick={() => setShowTaskModal(true)}
@@ -391,7 +427,7 @@ export default function App() {
                 {/* Stats row */}
                 <div className="grid grid-cols-3 gap-3 flex-shrink-0">
                   <div className="matte-panel p-3 bg-white flex flex-col justify-center items-center gap-1 border border-aria-border">
-                    <span className="text-[9px] font-bold text-aria-textMuted uppercase tracking-widest">Cumulative Reward</span>
+                    <span className="text-[9px] font-bold text-aria-textMuted uppercase tracking-widest">Reward</span>
                     <span className={`text-2xl font-light tracking-tighter ${cumulativeReward >= 0 ? 'text-pastel-sageText' : 'text-pastel-blushText'}`}>
                       {cumulativeReward >= 0 ? '+' : ''}{cumulativeReward.toFixed(2)}
                     </span>
@@ -424,7 +460,6 @@ export default function App() {
                       </div>
                     ))}
                   </div>
-                  {/* Progress bar */}
                   <div className="h-1 bg-gray-100 rounded-full overflow-hidden">
                     <div 
                       className="h-full bg-aria-accent rounded-full transition-all duration-500"
@@ -483,7 +518,7 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Right: Findings Panel */}
+              {/* Right: Findings Panel - FIX: pass correct findings data */}
               <FindingsPanel findings={findings} onViewClause={handleViewClause} />
             </div>
           )}

@@ -175,15 +175,9 @@ def get_environment_info() -> str:
 # ── Gradio Interface ─────────────────────────────────────────────────────────
 
 with gr.Blocks(
-    title="ARIA — Compliance Audit Agent",
-    theme=gr.themes.Soft(primary_hue="violet"),
-    css="""
-    .main-header { font-size: 28px; font-weight: 800; color: #4C1D95; margin-bottom: 4px; }
-    .subtitle { color: #6D28D9; font-size: 14px; }
-    .warning-box { background: #FEF3C7; border: 1px solid #F59E0B; border-radius: 8px; padding: 12px; }
-    """
+    title="ARIA — Compliance Audit Agent"
 ) as demo:
-    
+      
     gr.HTML("""
     <div style="text-align:center; padding: 20px 0 10px;">
       <div style="display:inline-flex;align-items:center;gap:12px;margin-bottom:8px;">
@@ -256,7 +250,7 @@ with gr.Blocks(
                 Cached baseline scores from <code>baseline_results.json</code>. 
                 Run an evaluation to update.
             </p>""")
-            results_display = gr.Textbox(label="Baseline Scores", lines=20, font_size=13)
+            results_display = gr.Textbox(label="Baseline Scores", lines=20)
             refresh_btn = gr.Button("🔄 Refresh Scores", variant="secondary")
             refresh_btn.click(fn=get_baseline_scores, inputs=[], outputs=[results_display])
             demo.load(fn=get_baseline_scores, inputs=[], outputs=[results_display])
@@ -345,7 +339,13 @@ ARIA's baseline **outperforms the GPT-4o target on Hard and Expert tiers**.
 if __name__ == "__main__":
     demo.launch(
         server_name="0.0.0.0",
-        server_port=7860,
-        # Don't block the main thread when running standalone
-        # The Gradio server handles concurrency internally
+        server_port=7861,
+        theme=gr.themes.Soft(primary_hue="violet"),
+        css="""
+        .main-header { font-size: 28px; font-weight: 800; color: #4C1D95; margin-bottom: 4px; }
+        .subtitle { color: #6D28D9; font-size: 14px; }
+        .warning-box { background: #FEF3C7; border: 1px solid #F59E0B; border-radius: 8px; padding: 12px; }
+        """
     )
+
+    
