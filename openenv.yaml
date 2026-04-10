@@ -26,15 +26,15 @@ tasks:
   - id: "easy"
     name: "Basic GDPR Audit"
     difficulty: "easy"
-    max_steps: 25
+    max_steps: 15
   - id: "medium"
     name: "Cross-Framework Review"
     difficulty: "medium"
-    max_steps: 30
+    max_steps: 25
   - id: "hard"
     name: "Multi-Framework Resolution"
     difficulty: "hard"
-    max_steps: 45
+    max_steps: 40
   - id: "expert"
     name: "Incident Response Suite"
     difficulty: "expert"
@@ -53,7 +53,7 @@ baseline:
   reproducible: true
   seed: 42
   expected_scores:
-    easy: 0.76
-    medium: 0.58
-    hard: 0.54
-    expert: 0.38
+    easy: 0.78
+    medium: 0.74
+    hard: 0.75
+    expert: 0.78

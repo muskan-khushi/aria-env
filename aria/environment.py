@@ -121,21 +121,23 @@ class ARIAEnv:
                 and obs.steps_taken >= incident_cfg.get("trigger_step", 9999)):
             self._trigger_incident(obs, incident_cfg)
 
-        # Phase penalty check
+        # Compute reward (single call — no double penalty bug)
+        reward_obj = self._reward_engine.compute(action, obs, gt)
+
+        # Phase penalty check (called ONCE only)
         phase_penalty = self._reward_engine.check_phase_violation(action, obs.phase)
 
-        # Compute reward
-        reward_obj = self._reward_engine.compute(action, obs, gt)
-        
-        # Phase penalty & Temporal Decay
-        phase_penalty = self._reward_engine.check_phase_violation(action, obs.phase)
-        temporal_decay = -0.001 * obs.steps_taken  # Small penalty increasing over time
-        
-        if getattr(obs, "active_incident", None):
-             # Steeper decay during active incidents if not contained
-             completed = getattr(obs.active_incident, "completed_responses", [])
-             if "contain_breach" not in [getattr(c, "value", str(c)) for c in completed]:
-                 temporal_decay -= 0.01
+        # Temporal decay: small penalty increasing over time, but suppressed
+        # during active incident response to avoid unfairly penalizing expert tasks
+        if obs.active_incident is not None:
+            # During incident: only penalize if breach hasn't been contained yet
+            completed = [getattr(c, "value", str(c)) for c in (obs.active_incident.completed_responses or [])]
+            if "contain_breach" not in completed:
+                temporal_decay = -0.005  # flat small penalty until breach contained
+            else:
+                temporal_decay = -0.001 * obs.steps_taken
+        else:
+            temporal_decay = -0.001 * obs.steps_taken
 
         total_reward = reward_obj.reward + phase_penalty + temporal_decay
 
@@ -318,13 +320,11 @@ class ARIAEnv:
 
     def _load_task(self, task_name: str, seed: int = 42) -> dict:
         """Load a task JSON from disk."""
-        # Try direct file path first
         candidates = [
             TASKS_DIR / task_name / "task.json",
             TASKS_DIR / f"{task_name}.json",
             TASKS_DIR / "easy" / "task.json",  # fallback
         ]
-        # Handle difficulty-only names
         difficulty_map = {"easy": "easy", "medium": "medium", "hard": "hard", "expert": "expert"}
         if task_name in difficulty_map:
             candidates.insert(0, TASKS_DIR / difficulty_map[task_name] / "task.json")
