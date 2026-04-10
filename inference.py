@@ -4,7 +4,7 @@ ARIA — Baseline Inference Script  (v7 — proxy-compliant)
 inference.py  (root of repo)
 
 MANDATORY environment variables:
-  API_BASE_URL   LLM endpoint  (default: https://api-inference.huggingface.co/v1/)
+  API_BASE_URL   LLM endpoint  (default: https://router.huggingface.co/v1/
   MODEL_NAME     Model id      (default: Qwen/Qwen2.5-7B-Instruct)
   API_KEY        API key       (injected by judges' LiteLLM proxy)
   HF_TOKEN       Fallback API key (if API_KEY not set)
@@ -51,7 +51,7 @@ API_KEY      = (
     or os.getenv("HF_TOKEN")
     or os.getenv("OPENAI_API_KEY")
 )
-API_BASE_URL = os.getenv("API_BASE_URL", "https://api-inference.huggingface.co/v1/")
+API_BASE_URL = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1/")
 MODEL_NAME   = os.getenv("MODEL_NAME",   "Qwen/Qwen2.5-7B-Instruct")
 BENCHMARK    = "aria-compliance-v1"
 SEED         = 42

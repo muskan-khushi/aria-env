@@ -7,7 +7,7 @@ SETUP:
   1. Have your Hugging Face API key ready
   2. Set your .env file:
        HF_TOKEN=your_token_here
-       API_BASE_URL=https://api-inference.huggingface.co/v1/
+       API_BASE_URL=https://router.huggingface.co/v1/
        MODEL_NAME=Qwen/Qwen2.5-7B-Instruct
   3. Run: python baseline/run_baseline.py
 """
@@ -66,7 +66,7 @@ def run_baseline():
     """
     hf_key = os.environ.get("HF_TOKEN")
     openai_key = os.environ.get("OPENAI_API_KEY")
-    base_url = os.environ.get("API_BASE_URL", "https://api-inference.huggingface.co/v1/")
+    base_url = os.environ.get("API_BASE_URL", "https://router.huggingface.co/v1/")
 
     api_key = hf_key or openai_key
 

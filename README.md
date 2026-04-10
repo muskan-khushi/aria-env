@@ -235,7 +235,7 @@ pip install -r requirements.txt
 
 # 3. Set credentials — use API_KEY if provided by judges, HF_TOKEN otherwise
 export API_KEY="your_api_key"           # judges' proxy key (takes priority)
-export API_BASE_URL="https://api-inference.huggingface.co/v1/"
+export API_BASE_URL="https://router.huggingface.co/v1/"
 export MODEL_NAME="Qwen/Qwen2.5-7B-Instruct"
 
 # 4. Run the baseline
@@ -260,7 +260,7 @@ docker run -it --rm \
   -p 7860:7860 \
   -e API_KEY="your_api_key" \
   -e MODEL_NAME="Qwen/Qwen2.5-7B-Instruct" \
-  -e API_BASE_URL="https://api-inference.huggingface.co/v1/" \
+  -e API_BASE_URL="https://router.huggingface.co/v1/" \
   aria-compliance
 # Open http://localhost:7860
 ```
@@ -363,7 +363,7 @@ Maximum 1 LLM call per gap candidate, hard cutoff after 2 consecutive failures, 
 | `API_KEY` | ✅ | — | API key injected by judges' LiteLLM proxy — takes priority over all other key vars |
 | `HF_TOKEN` | — | — | HuggingFace API Token — used as fallback if `API_KEY` is not set |
 | `MODEL_NAME` | ✅ | `Qwen/Qwen2.5-7B-Instruct` | Model identifier passed to the OpenAI-compatible endpoint |
-| `API_BASE_URL` | ✅ | `https://api-inference.huggingface.co/v1/` | OpenAI-compatible endpoint URL — use judges' injected value during evaluation |
+| `API_BASE_URL` | ✅ | `https://router.huggingface.co/v1/` | OpenAI-compatible endpoint URL — use judges' injected value during evaluation |
 
 ---
 
