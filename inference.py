@@ -1,5 +1,5 @@
 """
-ARIA — Baseline Inference Script  (v8 — blind-task + proxy-compliant)
+ARIA — Baseline Inference Script  (v9 — blind-task + proxy-compliant + bug-fixed)
 ==========================================================
 inference.py  (root of repo)
 
@@ -16,15 +16,15 @@ STDOUT FORMAT (evaluated by judges — do not alter):
 
 Tasks:
   easy, medium, hard, expert — heuristic-primary, deterministic
-  blind                      — NEW: paraphrased language, tests genuine regulatory
+  blind                      — paraphrased language, tests genuine regulatory
                                reasoning. LLM fallback required; no hardcoded triggers.
 
 Expected scores (v2 — with exploit-hardened grader):
-  easy:   ~0.72
-  medium: ~0.65
+  easy:   ~0.73
+  medium: ~0.62
   hard:   ~0.63
   expert: ~0.63
-  blind:  ~0.45  (LLM-dependent; lower by design — tests real generalisation)
+  blind:  ~0.36 (LLM-dependent; lower by design — tests real generalisation)
 """
 from __future__ import annotations
 
@@ -82,6 +82,33 @@ except ImportError as e:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
+# Structured log helpers  (judges parse these — do NOT change format)
+# ══════════════════════════════════════════════════════════════════════════════
+
+def log_start(task: str, env: str, model: str) -> None:
+    print(f"[START] task={task} env={env} model={model}", flush=True)
+
+
+def log_step(step: int, action: str, reward: float, done: bool, error) -> None:
+    err_str = str(error) if error else "null"
+    print(
+        f"[STEP] step={step} action={action} "
+        f"reward={reward:.2f} done={'true' if done else 'false'} "
+        f"error={err_str}",
+        flush=True,
+    )
+
+
+def log_end(success: bool, steps: int, score: float, rewards: List[float]) -> None:
+    rewards_str = ",".join(f"{r:.2f}" for r in rewards)
+    print(
+        f"[END] success={'true' if success else 'false'} steps={steps} "
+        f"score={score:.2f} rewards={rewards_str}",
+        flush=True,
+    )
+
+
+# ══════════════════════════════════════════════════════════════════════════════
 # Episode runner
 # ══════════════════════════════════════════════════════════════════════════════
 
@@ -90,7 +117,7 @@ def run_episode(task_name: str, client: OpenAI) -> dict:
     max_steps = MAX_STEPS.get(task_name, 25)
     agent     = MultiPassAgent(client=client, task_name=task_name)
 
-    print(f"[START] task={task_name} env={BENCHMARK} model={MODEL_NAME}", flush=True)
+    log_start(task=task_name, env=BENCHMARK, model=MODEL_NAME)
 
     try:
         obs = env.reset(task_name=task_name, seed=SEED)
@@ -100,7 +127,7 @@ def run_episode(task_name: str, client: OpenAI) -> dict:
     rewards: List[float] = []
     step_n   = 0
     done     = False
-    last_err: str | None = None
+    last_err = None
 
     for _ in range(max_steps):
         if done:
@@ -130,13 +157,13 @@ def run_episode(task_name: str, client: OpenAI) -> dict:
             last_err     = str(exc)
 
         rewards.append(reward)
-        err_str = last_err if last_err else "null"
 
-        print(
-            f"[STEP] step={step_n} action={action_str} "
-            f"reward={reward:.2f} done={'true' if done else 'false'} "
-            f"error={err_str}",
-            flush=True,
+        log_step(
+            step=step_n,
+            action=action_str,
+            reward=reward,
+            done=done,
+            error=last_err,
         )
 
         if done:
@@ -168,13 +195,8 @@ def run_episode(task_name: str, client: OpenAI) -> dict:
 
     score   = max(0.0, min(1.0, score))
     success = score >= SUCCESS_THRESHOLD
-    rewards_str = ",".join(f"{r:.2f}" for r in rewards)
 
-    print(
-        f"[END] success={'true' if success else 'false'} steps={step_n} "
-        f"score={score:.2f} rewards={rewards_str}",
-        flush=True,
-    )
+    log_end(success=success, steps=step_n, score=score, rewards=rewards)
 
     return {
         "task":               task_name,
@@ -260,13 +282,20 @@ def main() -> None:
     total_elapsed = time.time() - run_start
     known_results  = [r for r in all_results if r["task"] != "blind"]
     blind_results  = [r for r in all_results if r["task"] == "blind"]
-    avg_known  = sum(r["score"] for r in known_results) / max(1, len(known_results))
-    avg_all    = sum(r["score"] for r in all_results)   / max(1, len(all_results))
+
+    avg_known = sum(r["score"] for r in known_results) / max(1, len(known_results))
+    avg_all   = sum(r["score"] for r in all_results)   / max(1, len(all_results))
+
+    # FIX: properly compute blind_score_str before using it
+    if blind_results:
+        blind_score_str = f"{blind_results[0]['score']:.3f}"
+    else:
+        blind_score_str = "N/A"
 
     print(
         f"\n{'═'*52}\n"
         f"  KNOWN TASKS avg_score={avg_known:.3f}\n"
-        f"  BLIND TASK  score={blind_results[0]['score']:.3f if blind_results else 'N/A'}\n"
+        f"  BLIND TASK  score={blind_score_str}\n"
         f"  OVERALL     avg_score={avg_all:.3f} | "
         f"time={total_elapsed:.1f}s ({total_elapsed/60:.1f}min)",
         file=sys.stderr, flush=True,
@@ -281,9 +310,12 @@ def main() -> None:
     ]:
         p = Path(path_str)
         p.parent.mkdir(parents=True, exist_ok=True)
-        with open(p, "w") as fh:
-            json.dump(wrapped, fh, indent=2)
-        print(f"[OK] Results saved → {p}", file=sys.stderr)
+        try:
+            with open(p, "w") as fh:
+                json.dump(wrapped, fh, indent=2)
+            print(f"[OK] Results saved → {p}", file=sys.stderr)
+        except Exception as e:
+            print(f"[WARN] Could not save results to {p}: {e}", file=sys.stderr)
 
 
 if __name__ == "__main__":

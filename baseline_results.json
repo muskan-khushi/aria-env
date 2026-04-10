@@ -219,6 +219,45 @@
         0.132,
         -0.049
       ]
+    },
+    {
+      "task": "blind",
+      "agent": "MultiPass",
+      "score": 0.3558,
+      "f1": 0.2857,
+      "precision": 1.0,
+      "recall": 0.1667,
+      "evidence_score": 0.55,
+      "remediation_score": 0.0,
+      "steps_taken": 15,
+      "cumulative_reward": 0.1549999999999999,
+      "breakdown": {
+        "gap_f1": 0.1143,
+        "evidence": 0.1375,
+        "remediation": 0.0,
+        "severity": 0.1,
+        "conflict": 0.0,
+        "efficiency": 0.004
+      },
+      "steps": 15,
+      "success": false,
+      "rewards": [
+        0.01,
+        0.009000000000000001,
+        0.008,
+        0.007,
+        0.006,
+        0.005,
+        0.244,
+        0.033,
+        -0.028,
+        -0.029,
+        -0.03,
+        -0.031,
+        -0.032,
+        -0.003000000000000001,
+        -0.014
+      ]
     }
   ],
   "model": "Qwen/Qwen2.5-7B-Instruct",
