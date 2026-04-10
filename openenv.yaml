@@ -1,19 +1,24 @@
-name: "aria-compliance-v1"  
+name: "aria-compliance-v1"
 version: "1.0.0"
 url: "https://muskankhushi-aria-compliance-v1.hf.space"
 entry_point: "aria.environment:ARIAEnv"
 description: >
-  A high-fidelity RL environment for multi-framework compliance auditing. 
-  Features evidence-chain validation, cross-framework conflict detection, 
-  and live incident response simulation.
+  A high-fidelity RL environment for multi-framework compliance auditing.
+  Features evidence-chain validation, cross-framework conflict detection,
+  anti-gaming reward architecture (v2), live incident response simulation,
+  and a blind generalisation task with paraphrased regulatory language.
 author: "Muskan"
 license: "MIT"
 tags:
   - compliance
   - legal-ai
   - gdpr
+  - hipaa
+  - ccpa
+  - soc2
   - incident-response
   - openenv
+  - real-world
 
 environment:
   type: "text"
@@ -21,24 +26,49 @@ environment:
   action_type: "structured"
   reward_type: "dense"
   episode_type: "finite"
+  real_world: true
 
 tasks:
   - id: "easy"
-    name: "Basic GDPR Audit"
+    name: "Basic GDPR Audit — NovaSynth Analytics"
     difficulty: "easy"
     max_steps: 15
+    frameworks: ["GDPR"]
+    num_gaps: 3
+    has_incident: false
+    description: "Single-document GDPR consistency check with red herrings"
   - id: "medium"
-    name: "Cross-Framework Review"
+    name: "Cross-Framework Review — DataBridge Analytics"
     difficulty: "medium"
     max_steps: 25
+    frameworks: ["GDPR", "CCPA"]
+    num_gaps: 5
+    has_incident: false
+    description: "Multi-document relational reasoning with contradictions"
   - id: "hard"
-    name: "Multi-Framework Resolution"
+    name: "Multi-Framework Conflict Resolution — NovaSynth Analytics"
     difficulty: "hard"
     max_steps: 40
+    frameworks: ["GDPR", "HIPAA", "CCPA"]
+    num_gaps: 8
+    has_incident: false
+    description: "Adversarial clauses and cross-framework conflicts"
   - id: "expert"
-    name: "Incident Response Suite"
+    name: "Incident Response Suite — MediCore Health Platform"
     difficulty: "expert"
     max_steps: 60
+    frameworks: ["GDPR", "HIPAA", "CCPA", "SOC2"]
+    num_gaps: 10
+    has_incident: true
+    description: "Live data breach at step 25 mid-audit — dual-task challenge"
+  - id: "blind"
+    name: "Blind Generalisation Task — CloudSync Data Platform"
+    difficulty: "medium"
+    max_steps: 25
+    frameworks: ["GDPR", "CCPA"]
+    num_gaps: 6
+    has_incident: false
+    description: "Paraphrased language — no trigger phrases, tests genuine regulatory reasoning"
 
 endpoints:
   reset: "/reset"
@@ -46,14 +76,29 @@ endpoints:
   state: "/state"
   tasks: "/tasks"
   grader: "/grader"
-  close: "/health"
+  baseline: "/baseline"
+  health: "/health"
 
 baseline:
   model: "Qwen/Qwen2.5-7B-Instruct"
   reproducible: true
   seed: 42
   expected_scores:
-    easy: 0.78
-    medium: 0.74
-    hard: 0.75
-    expert: 0.78
+    easy: 0.73
+    medium: 0.62
+    hard: 0.63
+    expert: 0.63
+    blind: 0.36
+  total_wall_clock_seconds: 25
+  inference_script: "inference.py"
+
+reward:
+  type: "dense"
+  range: [-0.30, 0.25]
+  anti_gaming_v2: true
+  mechanisms:
+    - "global_fp_budget"
+    - "verbosity_penalty"
+    - "conflict_description_quality"
+    - "coverage_efficiency_bonus"
+    - "shotgun_penalty"
