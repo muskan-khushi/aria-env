@@ -1,4 +1,4 @@
-"""ARIA — FastAPI Routes (OpenEnv required endpoints)"""
+"""ARIA — FastAPI Routes (OpenEnv required endpoints) v2"""
 from __future__ import annotations
 import json
 import asyncio
@@ -12,6 +12,7 @@ from server.websocket import ws_manager
 router = APIRouter()
 TASKS_DIR = Path(__file__).parent.parent / "tasks"
 BASELINE_CACHE = Path(__file__).parent.parent / "baseline" / "baseline_results.json"
+BASELINE_CACHE_ROOT = Path(__file__).parent.parent / "baseline_results.json"
 
 # ─── Request/Response schemas ─────────────────────────────────────────────────
 
@@ -39,13 +40,10 @@ async def reset(
         sid, env = session_manager.create(
             task_name=req.task_name, 
             seed=req.seed, 
-            forced_session_id=x_session_id
+            forced_session_id=x_session_id or req.session_id
         )
         
         obs = env.state()
-        
-        # We must ensure the observation returned to the script 
-        # also contains the correct session_id
         obs_dict = obs.model_dump()
         obs_dict["session_id"] = sid
         
@@ -81,7 +79,8 @@ async def step(req: StepRequest, x_session_id: str = Header(..., alias="X-Sessio
             "observation": obs.model_dump(),
         }))
         # Broadcast incident alert if fired this step
-        if getattr(obs, 'active_incident', None) and len(getattr(obs, 'incident_timeline', [])) == 1:
+        if (getattr(obs, 'active_incident', None) 
+                and len(getattr(obs, 'incident_timeline', [])) == 1):
             asyncio.create_task(ws_manager.broadcast(x_session_id, {
                 "type": "incident_alert",
                 "incident": obs.active_incident.model_dump(),
@@ -95,6 +94,8 @@ async def step(req: StepRequest, x_session_id: str = Header(..., alias="X-Sessio
         return payload
     except RuntimeError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 # ─── GET /state ───────────────────────────────────────────────────────────────
 
@@ -112,7 +113,7 @@ async def list_tasks():
     tasks = []
     action_schema = ARIAAction.model_json_schema()
 
-    for difficulty in ["easy", "medium", "hard", "expert"]:
+    for difficulty in ["easy", "medium", "hard", "expert", "blind"]:
         task_file = TASKS_DIR / difficulty / "task.json"
         if task_file.exists():
             with open(task_file) as f:
@@ -125,6 +126,7 @@ async def list_tasks():
                 "frameworks": t.get("frameworks_in_scope", []),
                 "num_gaps": len(t.get("ground_truth", {}).get("gaps", [])),
                 "has_incident": t.get("incident") is not None,
+                "description": t.get("description", ""),
             })
 
     return {
@@ -136,10 +138,16 @@ async def list_tasks():
 # ─── POST /grader ─────────────────────────────────────────────────────────────
 
 @router.post("/grader")
-async def grader(req: GraderRequest = None, x_session_id: str = Header(None, alias="X-Session-ID")):
+async def grader(
+    req: GraderRequest = None, 
+    x_session_id: str = Header(None, alias="X-Session-ID")
+):
     sid = (req.session_id if req and req.session_id else None) or x_session_id
     if not sid:
-        raise HTTPException(status_code=400, detail="Provide session_id in body or X-Session-ID header")
+        raise HTTPException(
+            status_code=400, 
+            detail="Provide session_id in body or X-Session-ID header"
+        )
     env = session_manager.get(sid)
     if not env:
         raise HTTPException(status_code=404, detail=f"Session {sid} not found.")
@@ -151,11 +159,23 @@ async def grader(req: GraderRequest = None, x_session_id: str = Header(None, ali
 @router.post("/baseline")
 async def baseline():
     """Return cached baseline scores, or trigger fresh run if cache missing."""
-    if BASELINE_CACHE.exists():
-        with open(BASELINE_CACHE) as f:
-            return json.load(f)
+    # Check both possible locations
+    for cache_path in [BASELINE_CACHE_ROOT, BASELINE_CACHE]:
+        if cache_path.exists():
+            try:
+                with open(cache_path) as f:
+                    return json.load(f)
+            except Exception:
+                continue
     return {
         "status": "pending",
-        "message": "Run `python baseline/run_baseline.py` to generate baseline scores.",
-        "tasks": ["easy", "medium", "hard", "expert"],
+        "message": "Run `python inference.py` to generate baseline scores.",
+        "tasks": ["easy", "medium", "hard", "expert", "blind"],
     }
+
+# ─── GET /baseline ────────────────────────────────────────────────────────────
+
+@router.get("/baseline")
+async def get_baseline():
+    """GET endpoint — same as POST for compatibility."""
+    return await baseline()
