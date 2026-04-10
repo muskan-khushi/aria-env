@@ -69,15 +69,15 @@ Watch an agent conduct a real-time GDPR audit end-to-end. The dashboard surfaces
 
 ## Baseline Results
 
-All scores are fully reproducible from `inference.py` using `seed=42`. The baseline agent (`MultiPassAgent v8`) connects to the LLM proxy at startup and uses **task-tuned heuristics** as the primary gap detection strategy — deterministic, zero false positives, completes all four tasks in seconds. The LLM fallback activates after heuristics are exhausted, making at most 1 call per task to confirm no remaining gaps exist.
+All scores are fully reproducible from `inference.py` using `seed=42`. The baseline agent (`MultiPassAgent v8`) connects to the LLM proxy at startup and uses **task-tuned heuristics** as the primary gap detection strategy — deterministic, zero false positives, and completes all four tasks in ~13 seconds end-to-end. The LLM fallback activates after heuristics are exhausted, making at most 1 call per task to confirm no remaining gaps exist.
 
 | Task | Difficulty | Focus | **Score** | **F1** | **Steps** | **GPT-4o Target** | Random Floor |
 |:---|:---:|:---|:---:|:---:|:---:|:---:|:---:|
-| **Easy** | 🟢 | Single-document GDPR consistency | **0.784** ✅ | 1.000 | 13 | 0.94 | 0.15 |
-| **Medium** | 🟡 | Cross-document DPA + Policy alignment | **0.743** ✅ | 1.000 | 25 | 0.71 | 0.09 |
-| **Hard** | 🟠 | Multi-framework conflict resolution | **0.755** ✅ | 0.933 | 39 | 0.52 | 0.04 |
-| **Expert** | 🔴 | Live breach response mid-audit | **0.782** ✅ | 1.000 | 59 | 0.33 | 0.02 |
-| | | **Average** | **0.766** | **0.983** | | 0.63 | 0.08 |
+| **Easy** | 🟢 | Single-document GDPR consistency | **0.717** ✅ | 1.000 | 14 | 0.94 | 0.15 |
+| **Medium** | 🟡 | Cross-document DPA + Policy alignment | **0.617** ✅ | 0.800 | 24 | 0.71 | 0.09 |
+| **Hard** | 🟠 | Multi-framework conflict resolution | **0.632** ✅ | 0.750 | 36 | 0.52 | 0.04 |
+| **Expert** | 🔴 | Live breach response mid-audit | **0.629** ✅ | 0.778 | 50 | 0.33 | 0.02 |
+| | | **Average** | **0.649** | **0.832** | | 0.63 | 0.08 |
 
 > Verified output from a single `python inference.py` run. Total wall-clock time: **< 5 seconds** (including LLM warmup). All tasks completed successfully (`success=true`). ARIA's baseline **outperforms the GPT-4o target on Hard and Expert tiers**.
 
