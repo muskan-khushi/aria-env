@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
-import {
-  FileText, Activity, Sparkles, Settings2, AlertOctagon, Trophy, History, Download, X,
-  Shield, Code2, Home, TrendingUp, CheckCircle2,
+import { 
+  FileText, Activity, Sparkles, Settings2, AlertOctagon, Trophy, History, Siren, Download, X,
+  Shield, Code2, Home,
 } from 'lucide-react';
 
 import RewardChart from './components/RewardChart';
@@ -17,53 +17,10 @@ import LandingPage from './components/LandingPage';
 const API_BASE = window.location.origin;
 const WS_PROTOCOL = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
 const WS_URL = `${WS_PROTOCOL}//${window.location.host}/aria/ws`;
-const FIXED_SESSION_ID = "demo_session_001";
+const FIXED_SESSION_ID = "hackathon_demo_001";
 
 type TabType = 'monitor' | 'leaderboard' | 'replay' | 'frameworks' | 'api';
 type AppView = 'landing' | 'dashboard';
-
-const GLOBAL_STYLES = `
-  @import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,700;12..96,800&family=JetBrains+Mono:wght@400;600;700&display=swap');
-  
-  * { box-sizing: border-box; }
-  
-  :root {
-    --lavender-50: #FAF7FF;
-    --lavender-100: #F3EEFF;
-    --lavender-200: #E9DFFE;
-    --lavender-300: #D4BBFD;
-    --lavender-400: #B794FA;
-    --lavender-500: #9561F4;
-    --lavender-600: #7C3AED;
-    --font-grotesque: 'Bricolage Grotesque', 'DM Sans', sans-serif;
-    --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
-    --font-serif: 'Instrument Serif', Georgia, serif;
-  }
-
-  body {
-    font-family: var(--font-grotesque);
-    background: #FAF7FF;
-    color: #1a0a2e;
-  }
-
-  ::-webkit-scrollbar { width: 5px; height: 5px; }
-  ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { background: rgba(196,181,253,0.4); border-radius: 10px; }
-  ::-webkit-scrollbar-thumb:hover { background: rgba(139,92,246,0.5); }
-
-  @keyframes pulse-dot { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
-  @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-  @keyframes float-in { 0% { opacity: 0; transform: translateY(20px); } 100% { opacity: 1; transform: translateY(0); } }
-`;
-
-const TASK_COLORS: Record<string, { color: string; bg: string; border: string }> = {
-  easy: { color: '#10B981', bg: '#D1FAE5', border: '#A7F3D0' },
-  medium: { color: '#8B5CF6', bg: '#EDE9FE', border: '#C4B5FD' },
-  hard: { color: '#F97316', bg: '#FFEDD5', border: '#FED7AA' },
-  expert: { color: '#EC4899', bg: '#FCE7F3', border: '#F9A8D4' },
-  blind: { color: '#6D28D9', bg: '#EDE9FE', border: '#C4B5FD' },
-  custom: { color: '#0EA5E9', bg: '#E0F2FE', border: '#BAE6FD' },
-};
 
 export default function App() {
   const [appView, setAppView] = useState<AppView>('landing');
@@ -74,10 +31,12 @@ export default function App() {
   const [activeSection, setActiveSection] = useState<string | null>(null);
   const [logs, setLogs] = useState<string[]>(["Awaiting run initialization..."]);
   const [chartData, setChartData] = useState([{ step: 0, reward: 0, cumulative: 0 }]);
+  // FIX: Store full finding objects from WebSocket observation
   const [findings, setFindings] = useState<any[]>([]);
   const [currentDoc, setCurrentDoc] = useState<any>(null);
   const [currentPhase, setCurrentPhase] = useState<string>("reading");
   const [cumulativeReward, setCumulativeReward] = useState<number>(0);
+  
   const [showTaskModal, setShowTaskModal] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
   const [selectedTask, setSelectedTask] = useState('easy');
@@ -98,21 +57,60 @@ export default function App() {
     const connectWs = () => {
       const socket = new WebSocket(`${WS_URL}/${FIXED_SESSION_ID}`);
       wsRef.current = socket;
-      socket.onopen = () => { setWsConnected(true); };
-      socket.onclose = () => { setWsConnected(false); setTimeout(connectWs, 3000); };
+
+      socket.onopen = () => {
+        console.log("✅ WebSocket Linked");
+        setWsConnected(true);
+      };
+
+      socket.onclose = () => {
+        setWsConnected(false);
+        setTimeout(connectWs, 3000);
+      };
+      
+      const speak = (text: string) => {
+        if ('speechSynthesis' in window) {
+          window.speechSynthesis.cancel();
+          const msg = new SpeechSynthesisUtterance(text);
+          msg.rate = 1.0; msg.pitch = 0.9;
+          window.speechSynthesis.speak(msg);
+        }
+      };
+
       socket.onmessage = (event) => {
         const data = JSON.parse(event.data);
+        
         if (data.type === 'step') {
           setIsDemoRunning(true);
           const obs = data.observation;
           setLogs(prev => [data.reward_reason || `Action: ${data.action?.action_type || 'unknown'}`, ...prev.slice(0, 199)]);
-          setChartData(prev => [...prev, { step: data.step_number, reward: data.reward, cumulative: obs.cumulative_reward }]);
-          setFindings(obs.active_findings || []);
+          setChartData(prev => [...prev, { 
+            step: data.step_number, 
+            reward: data.reward, 
+            cumulative: obs.cumulative_reward 
+          }]);
+          
+          // FIX: Properly extract active_findings from observation
+          const activeFindingsRaw = obs.active_findings || [];
+          setFindings(activeFindingsRaw);
+          
           setCurrentPhase(obs.phase || "reading");
           setCumulativeReward(obs.cumulative_reward || 0);
           setTotalStepsRun(data.step_number);
-          if (data.action?.action_type === 'request_section') setActiveSection(data.action.section_id);
-          if (obs.documents && obs.documents.length > 0 && !currentDoc) setCurrentDoc(obs.documents[0]);
+
+          if (data.action?.action_type === 'request_section') {
+            setActiveSection(data.action.section_id);
+          }
+          
+          // Update doc from observation
+          if (obs.documents && obs.documents.length > 0 && !currentDoc) {
+            setCurrentDoc(obs.documents[0]);
+          }
+          
+          if (data.action?.action_type === 'identify_gap') {
+            speak(`Auditor has flagged a potential gap: ${data.action.gap_type?.replace(/_/g, ' ')}`);
+          }
+
           setReplaySteps(prev => [...prev, {
             step: data.step_number,
             action: (data.action?.action_type || 'unknown') + (data.action?.clause_ref ? ` (${data.action.clause_ref})` : ''),
@@ -123,16 +121,36 @@ export default function App() {
             rawJson: data
           }]);
         }
-        if (data.type === 'incident_alert') setActiveIncident(data.incident);
+
+        if (data.type === 'incident_alert') {
+          speak(`Critical Alert! Breach detected. ${data.message}`);
+          setActiveIncident(data.incident);
+        }
+
         if (data.type === 'episode_complete') {
+          speak("Audit complete. Final grade has been generated.");
           setIsDemoRunning(false);
           setIsDemoComplete(true);
           setLogs(prev => ["🏁 Episode Complete. Final Grade available in Leaderboard.", ...prev]);
+          
+          // FIX: Fetch final grade to get complete findings state
+          fetch(`${API_BASE}/grader`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-Session-ID': FIXED_SESSION_ID },
+          })
+            .then(r => r.json())
+            .then(grade => {
+              console.log("Final grade:", grade);
+            })
+            .catch(console.error);
         }
       };
     };
+
     connectWs();
-    return () => { wsRef.current?.close(1000, "unmount"); };
+    return () => {
+      wsRef.current?.close(1000, "Component unmounted");
+    };
   }, []);
 
   const handleLaunch = async () => {
@@ -140,13 +158,18 @@ export default function App() {
     setIsDemoComplete(false);
     setLogs(["Requesting environment reset..."]);
     sectionRefs.current = {};
-    setFindings([]);
+    setFindings([]); // Clear previous findings
+    
     try {
       const response = await fetch(`${API_BASE}/reset`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Session-ID': FIXED_SESSION_ID },
+        headers: { 
+          'Content-Type': 'application/json',
+          'X-Session-ID': FIXED_SESSION_ID 
+        },
         body: JSON.stringify({ task_name: selectedTask, seed: 42 })
       });
+      
       const initialObs = await response.json();
       setCurrentDoc(initialObs.documents?.[0] || null);
       setReplaySteps([]);
@@ -158,6 +181,8 @@ export default function App() {
       setSteerText("");
       setLogs(prev => ["Environment Ready. Waiting for Agent actions...", ...prev]);
       setShowTaskModal(false);
+
+      // Auto-start internal agent
       await fetch(`${API_BASE}/aria/demo/start/${selectedTask}`, { method: 'POST' });
     } catch (err) {
       setLogs(prev => ["❌ Connection Error: Ensure backend is running at :7860", ...prev]);
@@ -186,461 +211,410 @@ export default function App() {
       });
       setLogs(prev => [`[USER OVERRIDE]: ${steerText}`, ...prev]);
       setSteerText("");
-    } catch (err) { console.error(err); }
+    } catch (err) {
+      console.error(err);
+    }
     setSteerSending(false);
   };
 
+  // Show landing page first
   if (appView === 'landing') {
     return <LandingPage onEnterDashboard={() => setAppView('dashboard')} />;
   }
 
   const canDownload = findings.length > 0 || isDemoComplete || replaySteps.length > 0;
-  const taskCfg = TASK_COLORS[selectedTask] || TASK_COLORS.easy;
 
-  const PHASES = [
-    { id: 'reading', label: 'Read', num: '01' },
-    { id: 'auditing', label: 'Audit', num: '02' },
-    { id: 'remediating', label: 'Fix', num: '03' },
-    { id: 'complete', label: 'Done', num: '04' },
+  const TASK_DIFFICULTY_COLOR: Record<string, string> = {
+    easy: 'text-emerald-600 bg-emerald-50 border-emerald-200',
+    medium: 'text-amber-600 bg-amber-50 border-amber-200',
+    hard: 'text-orange-600 bg-orange-50 border-orange-200',
+    expert: 'text-rose-600 bg-rose-50 border-rose-200',
+    blind: 'text-purple-600 bg-purple-50 border-purple-200',
+    custom: 'text-blue-600 bg-blue-50 border-blue-200',
+  };
+
+  const navItems: { id: TabType; label: string; icon: any }[] = [
+    { id: 'monitor', label: 'Monitor', icon: Activity },
+    { id: 'replay', label: 'Replay', icon: History },
+    { id: 'leaderboard', label: 'Leaderboard', icon: Trophy },
+    { id: 'frameworks', label: 'Frameworks', icon: Shield },
+    { id: 'api', label: 'API', icon: Code2 },
   ];
-  const phaseIdx = PHASES.findIndex(p => p.id === currentPhase);
 
   return (
-    <>
-      <style>{GLOBAL_STYLES}</style>
-
-      <div style={{
-        minHeight: '100vh',
-        background: '#FAF7FF',
-        padding: '16px',
-        display: 'flex',
-        flexDirection: 'column',
-        position: 'relative',
-      }}>
-        {/* Ambient orbs */}
-        <div style={{ position: 'fixed', top: '-10%', left: '-5%', width: '45vw', height: '45vw', borderRadius: '50%', background: 'radial-gradient(circle, rgba(196,165,253,0.2) 0%, transparent 70%)', filter: 'blur(60px)', pointerEvents: 'none', zIndex: 0 }} />
-        <div style={{ position: 'fixed', bottom: '0', right: '-5%', width: '40vw', height: '40vw', borderRadius: '50%', background: 'radial-gradient(circle, rgba(249,168,212,0.15) 0%, transparent 70%)', filter: 'blur(60px)', pointerEvents: 'none', zIndex: 0 }} />
-
-        {/* Dot grid */}
-        <div style={{ position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none', backgroundImage: 'radial-gradient(circle, rgba(167,139,250,0.15) 1px, transparent 1px)', backgroundSize: '24px 24px', opacity: 0.8 }} />
-
-        <div style={{ position: 'relative', zIndex: 10, maxWidth: 1700, margin: '0 auto', width: '100%', display: 'flex', flexDirection: 'column', flex: 1, gap: 16 }}>
-
-          {/* ── HEADER ── */}
-          <header style={{
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            background: 'rgba(255,255,255,0.8)',
-            backdropFilter: 'blur(20px)',
-            borderRadius: 20,
-            border: '1.5px solid rgba(196,181,253,0.3)',
-            padding: '14px 24px',
-            boxShadow: '0 4px 24px rgba(109,40,217,0.06)',
-            gap: 16,
-          }}>
-            {/* Logo */}
-            <button onClick={() => setAppView('landing')} style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'none', border: 'none', cursor: 'pointer', transition: 'opacity 0.2s', padding: 0 }}
-              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.opacity = '0.75'; }}
-              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.opacity = '1'; }}
+    <div className={`min-h-screen p-4 flex flex-col transition-colors duration-500 ${activeIncident ? 'bg-pastel-blush' : 'bg-aria-bg'}`}>
+      <div className={`w-full max-w-[1600px] mx-auto flex flex-col flex-1 matte-panel p-5 transition-all duration-500 ${showTaskModal || activeIncident ? 'scale-[0.98] blur-[2px] opacity-60' : ''}`}>
+        
+        {/* Header - Fixed layout to prevent congestion */}
+        <header className="flex justify-between items-center mb-5 pb-4 border-b border-aria-border relative flex-shrink-0 gap-2">
+          {/* Logo - left */}
+          <div className="flex items-center gap-2 min-w-[120px]">
+            <button
+              onClick={() => setAppView('landing')}
+              className="flex items-center gap-2 hover:opacity-80 transition-opacity"
+              title="Back to home"
             >
-              <div style={{ width: 36, height: 36, borderRadius: 12, background: 'linear-gradient(135deg, #C4B5FD 0%, #8B5CF6 50%, #6D28D9 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 12px rgba(109,40,217,0.35)' }}>
-                <Activity style={{ width: 18, height: 18, color: 'white' }} />
+              <div className="w-8 h-8 rounded-lg bg-aria-accent flex items-center justify-center shadow-premium flex-shrink-0">
+                <Activity className="text-white w-4 h-4" />
               </div>
-              <div>
-                <div style={{ fontSize: 18, fontWeight: 800, letterSpacing: '-0.5px', color: '#3B0764', lineHeight: 1 }}>ARIA</div>
-                <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.16em', color: '#9561F4', textTransform: 'uppercase', lineHeight: 1, marginTop: 2 }}>Compliance Intelligence</div>
+              <div className="hidden sm:block">
+                <h1 className="text-base font-bold tracking-tight text-aria-textMain leading-none">ARIA</h1>
+                <p className="text-[9px] text-aria-textMuted font-medium tracking-widest uppercase leading-none mt-0.5 hidden lg:block">Regulatory Intelligence</p>
               </div>
             </button>
+          </div>
 
-            {/* Nav tabs */}
-            <nav style={{ display: 'flex', gap: 4, background: 'rgba(243,238,255,0.6)', padding: '5px', borderRadius: 16, border: '1px solid rgba(196,181,253,0.2)' }}>
-              <button onClick={() => setAppView('landing')} title="Home" style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                width: 36, height: 36, borderRadius: 12,
-                background: 'none', border: 'none', cursor: 'pointer',
-                color: '#9CA3AF', transition: 'all 0.2s',
-              }}
-                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'white'; (e.currentTarget as HTMLElement).style.color = '#8B5CF6'; }}
-                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none'; (e.currentTarget as HTMLElement).style.color = '#9CA3AF'; }}
+          {/* Nav - center, compact */}
+          <nav className="flex gap-0.5 text-xs font-bold text-aria-textMuted uppercase tracking-wide">
+            {/* Home button */}
+            <button
+              onClick={() => setAppView('landing')}
+              className="pb-1.5 pt-1.5 px-2 transition-all flex items-center gap-1 rounded-lg hover:text-aria-textMain hover:bg-gray-100"
+              title="Home"
+            >
+              <Home className="w-3.5 h-3.5" />
+            </button>
+            {navItems.map(({ id, label, icon: Icon }) => (
+              <button
+                key={id}
+                onClick={() => setActiveTab(id)}
+                className={`pb-1.5 pt-1.5 px-2.5 transition-all flex items-center gap-1 rounded-lg whitespace-nowrap ${
+                  activeTab === id 
+                    ? 'text-aria-accent bg-aria-accentLight' 
+                    : 'hover:text-aria-textMain hover:bg-gray-100'
+                }`}
               >
-                <Home style={{ width: 15, height: 15 }} />
+                <Icon className="w-3 h-3 flex-shrink-0" />
+                <span className="hidden md:inline">{label}</span>
               </button>
-              {([
-                { id: 'monitor', label: 'Monitor', icon: Activity },
-                { id: 'replay', label: 'Replay', icon: History },
-                { id: 'leaderboard', label: 'Scores', icon: Trophy },
-                { id: 'frameworks', label: 'Frameworks', icon: Shield },
-                { id: 'api', label: 'API', icon: Code2 },
-              ] as const).map(({ id, label, icon: Icon }) => (
-                <button key={id} onClick={() => setActiveTab(id)} style={{
-                  display: 'flex', alignItems: 'center', gap: 6,
-                  padding: '8px 14px', borderRadius: 12,
-                  fontFamily: "'Bricolage Grotesque', sans-serif",
-                  fontSize: 13, fontWeight: 700,
-                  border: 'none', cursor: 'pointer', transition: 'all 0.2s',
-                  background: activeTab === id ? 'white' : 'none',
-                  color: activeTab === id ? '#8B5CF6' : '#9CA3AF',
-                  boxShadow: activeTab === id ? '0 2px 8px rgba(109,40,217,0.1)' : 'none',
-                }}>
-                  <Icon style={{ width: 14, height: 14 }} />
-                  <span style={{ display: 'none', ...(typeof window !== 'undefined' && window.innerWidth > 900 ? { display: 'inline' } : {}) }}>{label}</span>
-                </button>
-              ))}
-            </nav>
+            ))}
+          </nav>
 
-            {/* Right controls */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              {/* WS status */}
-              <div style={{
-                display: 'flex', alignItems: 'center', gap: 6,
-                padding: '7px 12px', borderRadius: 100,
-                background: wsConnected ? '#D1FAE5' : '#F3F4F6',
-                border: `1.5px solid ${wsConnected ? '#A7F3D0' : '#E5E7EB'}`,
-                fontFamily: "'Bricolage Grotesque', sans-serif",
-                fontSize: 11, fontWeight: 800,
-                color: wsConnected ? '#065F46' : '#9CA3AF',
-              }}>
-                <div style={{ width: 7, height: 7, borderRadius: '50%', background: wsConnected ? '#10B981' : '#9CA3AF', animation: wsConnected ? 'pulse-dot 2s infinite' : 'none' }} />
-                {wsConnected ? 'LIVE' : 'OFFLINE'}
-              </div>
-
-              {/* Task badge */}
-              <div style={{
-                padding: '7px 14px', borderRadius: 100,
-                background: taskCfg.bg, border: `1.5px solid ${taskCfg.border}`,
-                fontFamily: "'Bricolage Grotesque', sans-serif",
-                fontSize: 11, fontWeight: 800,
-                color: taskCfg.color, textTransform: 'uppercase', letterSpacing: '0.1em',
-              }}>
-                {selectedTask}
-              </div>
-
-              {/* Download */}
-              <button onClick={() => setShowReportModal(true)} disabled={!canDownload} style={{
-                width: 36, height: 36, borderRadius: 12,
-                background: canDownload ? 'white' : '#F9FAFB',
-                border: '1.5px solid rgba(196,181,253,0.3)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                cursor: canDownload ? 'pointer' : 'not-allowed',
-                color: canDownload ? '#8B5CF6' : '#D1D5DB',
-                transition: 'all 0.2s', boxShadow: canDownload ? '0 2px 8px rgba(109,40,217,0.08)' : 'none',
-              }}>
-                <Download style={{ width: 15, height: 15 }} />
-              </button>
-
-              {/* Settings */}
-              <button onClick={() => setShowTaskModal(true)} disabled={isDemoRunning} style={{
-                width: 36, height: 36, borderRadius: 12,
-                background: 'white', border: '1.5px solid rgba(196,181,253,0.3)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                cursor: isDemoRunning ? 'not-allowed' : 'pointer',
-                color: isDemoRunning ? '#D1D5DB' : '#7C6E9C',
-                transition: 'all 0.2s',
-              }}>
-                <Settings2 style={{ width: 15, height: 15 }} />
-              </button>
-
-              {/* Launch */}
-              <button onClick={handleLaunch} disabled={isDemoRunning} style={{
-                display: 'flex', alignItems: 'center', gap: 8,
-                background: isDemoRunning ? '#E5E7EB' : 'linear-gradient(135deg, #9561F4, #7C3AED, #6D28D9)',
-                color: isDemoRunning ? '#9CA3AF' : 'white',
-                border: 'none', borderRadius: 14,
-                padding: '10px 22px',
-                fontFamily: "'Bricolage Grotesque', sans-serif",
-                fontSize: 13, fontWeight: 800,
-                cursor: isDemoRunning ? 'not-allowed' : 'pointer',
-                transition: 'all 0.2s',
-                boxShadow: isDemoRunning ? 'none' : '0 4px 16px rgba(109,40,217,0.35)',
-                textTransform: 'uppercase', letterSpacing: '0.08em',
-              }}>
-                {isDemoRunning ? (
-                  <><div style={{ width: 14, height: 14, border: '2px solid #9CA3AF', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} /> Running</>
-                ) : (
-                  <><Sparkles style={{ width: 14, height: 14 }} /> Run Agent</>
-                )}
-              </button>
+          {/* Right controls - compact */}
+          <div className="flex items-center gap-1.5 min-w-[160px] justify-end">
+            {/* WS status dot */}
+            <div className={`flex items-center gap-1 px-2 py-1 rounded-full text-[9px] font-bold border ${wsConnected ? 'text-emerald-700 bg-emerald-50 border-emerald-200' : 'text-gray-500 bg-gray-100 border-gray-200'}`}>
+              <div className={`w-1.5 h-1.5 rounded-full ${wsConnected ? 'bg-emerald-500 animate-pulse' : 'bg-gray-400'}`} />
+              <span className="hidden sm:inline">{wsConnected ? 'LIVE' : 'OFF'}</span>
             </div>
-          </header>
 
-          {/* ── MAIN CONTENT ── */}
-          <div style={{ flex: 1 }}>
+            {/* Task badge */}
+            <div className={`px-1.5 py-0.5 rounded text-[9px] font-bold border hidden sm:block ${TASK_DIFFICULTY_COLOR[selectedTask] || 'text-gray-500 bg-gray-100 border-gray-200'}`}>
+              {selectedTask.toUpperCase()}
+            </div>
 
-            {/* MONITOR */}
-            {activeTab === 'monitor' && (
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 380px', gap: 20, minHeight: '680px' }}>
+            {/* Download */}
+            <button
+              onClick={() => setShowReportModal(true)}
+              disabled={!canDownload}
+              title="Download audit report"
+              className="p-1.5 rounded-lg border border-aria-border hover:bg-gray-50 transition text-aria-textMain disabled:opacity-30 disabled:cursor-not-allowed"
+            >
+              <Download className="w-3.5 h-3.5" />
+            </button>
 
-                {/* Left: Document */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <div style={{ width: 28, height: 28, borderRadius: 10, background: 'linear-gradient(135deg, #FCE7F3, #FBCFE8)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1.5px solid #F9A8D4' }}>
-                        <FileText style={{ width: 14, height: 14, color: '#EC4899' }} />
-                      </div>
-                      <span style={{ fontSize: 11, fontWeight: 800, color: '#5B4E7A', textTransform: 'uppercase', letterSpacing: '0.14em' }}>Active Document</span>
-                    </div>
-                    {currentDoc && <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: '#8B5CF6', background: '#EDE9FE', padding: '3px 10px', borderRadius: 100, fontWeight: 700 }}>{currentDoc.doc_id}</span>}
+            {/* Task config */}
+            <button
+              onClick={() => setShowTaskModal(true)}
+              disabled={isDemoRunning}
+              className="p-1.5 rounded-lg hover:bg-gray-100 transition text-aria-textMain disabled:opacity-50"
+              title="Configure task"
+            >
+              <Settings2 className="w-3.5 h-3.5" />
+            </button>
+
+            {/* Launch */}
+            <button
+              onClick={handleLaunch}
+              disabled={isDemoRunning}
+              className="flex items-center gap-1.5 bg-aria-accent text-white px-3 py-1.5 rounded-lg hover:bg-violet-600 transition shadow-premium disabled:opacity-50 text-xs font-bold uppercase tracking-wider whitespace-nowrap"
+            >
+              {isDemoRunning ? (
+                <><div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" /></>
+              ) : (
+                <><Sparkles className="w-3 h-3" /> Run</>
+              )}
+            </button>
+          </div>
+        </header>
+
+        <div className="flex-1 relative min-h-0">
+
+          {/* LIVE MONITOR VIEW */}
+          {activeTab === 'monitor' && (
+            <div className="grid grid-cols-12 gap-4" style={{ minHeight: '680px' }}>
+              
+              {/* Left: Document Viewer */}
+              <div className="col-span-4 flex flex-col gap-3 min-h-0">
+                <div className="flex items-center justify-between pl-1 flex-shrink-0">
+                  <div className="flex items-center gap-2">
+                    <FileText className="w-4 h-4 text-aria-textMuted" />
+                    <h2 className="text-xs font-bold text-aria-textMuted uppercase tracking-widest">Active Document</h2>
                   </div>
-                  <div style={{
-                    background: 'white', borderRadius: 24,
-                    border: '1.5px solid rgba(196,181,253,0.3)',
-                    overflowY: 'auto', flex: 1,
-                    boxShadow: '0 8px 40px -8px rgba(109,40,217,0.06)',
-                    minHeight: '580px', maxHeight: '620px',
-                    padding: '20px',
-                  }}>
-                    {currentDoc ? (
-                      <>
-                        <div style={{ borderBottom: '1px solid rgba(196,181,253,0.2)', paddingBottom: 16, marginBottom: 20 }}>
-                          <h3 style={{ fontFamily: "'Instrument Serif', serif", fontWeight: 400, fontSize: 20, color: '#1a0a2e', margin: '0 0 8px' }}>{currentDoc.title}</h3>
-                          <div style={{ display: 'flex', gap: 8 }}>
-                            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: '#9CA3AF', fontWeight: 600 }}>ID: {currentDoc.doc_id}</span>
-                            <span style={{ fontSize: 10, fontWeight: 800, color: '#8B5CF6', background: '#EDE9FE', padding: '2px 8px', borderRadius: 100 }}>
-                              {currentDoc.sections?.length} sections
-                            </span>
-                          </div>
+                  {currentDoc && (
+                    <span className="text-[10px] font-mono text-aria-textMuted bg-gray-100 px-2 py-0.5 rounded">{currentDoc.doc_id}</span>
+                  )}
+                </div>
+                <div className="matte-panel p-5 bg-white overflow-y-auto flex-1" style={{ height: '640px' }}>
+                  {currentDoc ? (
+                    <>
+                      <div className="border-b border-aria-border pb-4 mb-5">
+                        <h3 className="text-base font-bold text-aria-textMain">{currentDoc.title}</h3>
+                        <div className="flex items-center gap-2 mt-2 flex-wrap">
+                          <span className="text-[10px] font-mono text-aria-textMuted">ID: {currentDoc.doc_id}</span>
+                          <span className="text-[10px] font-bold text-aria-accent bg-aria-accentLight px-2 py-0.5 rounded-full">
+                            {currentDoc.sections?.length} sections
+                          </span>
                         </div>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                          {currentDoc.sections.map((sec: any) => {
-                            const secId = sec.section_id || sec.id;
-                            const isFlagged = findings.some(f => f.clause_ref?.includes(secId));
-                            const isActive = activeSection === secId;
-                            return (
-                              <div key={secId} ref={(el) => { sectionRefs.current[secId] = el; }} style={{
-                                padding: '16px 18px', borderRadius: 18, transition: 'all 0.4s cubic-bezier(0.34,1.56,0.64,1)',
-                                background: isFlagged ? 'linear-gradient(135deg, #FFF0F3, #FFE4E8)' : isActive ? 'linear-gradient(135deg, #FFFBEB, #FEF3C7)' : '#FAF7FF',
-                                border: `1.5px solid ${isFlagged ? '#FECDD3' : isActive ? '#FDE68A' : 'rgba(196,181,253,0.2)'}`,
-                                transform: isActive && !isFlagged ? 'scale(1.01)' : 'scale(1)',
-                              }}>
-                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, gap: 8 }}>
-                                  <h4 style={{ fontSize: 13, fontWeight: 800, color: '#1a0a2e', margin: 0, flex: 1 }}>{sec.title}</h4>
-                                  <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-                                    {isFlagged && <span style={{ fontSize: 9, fontWeight: 800, color: '#BE123C', background: '#FFE4E6', padding: '2px 8px', borderRadius: 100, textTransform: 'uppercase', letterSpacing: '0.08em' }}>⚠ FLAGGED</span>}
-                                    {isActive && !isFlagged && <span style={{ fontSize: 9, fontWeight: 800, color: '#78350F', background: '#FEF3C7', padding: '2px 8px', borderRadius: 100, textTransform: 'uppercase' }}>ACTIVE</span>}
-                                    <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: '#9CA3AF', fontWeight: 600 }}>{secId}</span>
-                                  </div>
-                                </div>
-                                <p style={{ fontSize: 12, lineHeight: 1.65, color: isFlagged ? '#9F1239' : isActive ? '#78350F' : '#6B7280', margin: 0, fontWeight: 500 }}>
-                                  {sec.content}
-                                </p>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </>
-                    ) : (
-                      <div style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 20, padding: '40px', textAlign: 'center' }}>
-                        <div style={{ width: 72, height: 72, borderRadius: 24, background: 'linear-gradient(135deg, #EDE9FE, #DDD6FE)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1.5px solid #C4B5FD' }}>
-                          <FileText style={{ width: 32, height: 32, color: '#8B5CF6' }} />
-                        </div>
-                        <div>
-                          <p style={{ fontSize: 18, color: '#1a0a2e', marginBottom: 8, fontFamily: "'Instrument Serif', serif", fontWeight: 400, fontStyle: 'italic' }}>No Document Loaded</p>
-                          <p style={{ fontSize: 14, color: '#9CA3AF', fontWeight: 500 }}>Select a task and click Run Agent to begin</p>
-                        </div>
-                        <button onClick={() => setShowTaskModal(true)} style={{
-                          padding: '12px 28px', borderRadius: 100,
-                          background: 'linear-gradient(135deg, #9561F4, #7C3AED)',
-                          color: 'white', border: 'none', cursor: 'pointer',
-                          fontSize: 14, fontWeight: 800,
-                          fontFamily: "'Bricolage Grotesque', sans-serif",
-                          boxShadow: '0 4px 16px rgba(109,40,217,0.35)',
-                          transition: 'all 0.2s',
-                        }}>
-                          Select Task
-                        </button>
                       </div>
-                    )}
+                      <div className="flex flex-col gap-3 font-serif">
+                        {currentDoc.sections.map((sec: any) => {
+                          const secId = sec.section_id || sec.id;
+                          const isFlagged = findings.some(f => f.clause_ref?.includes(secId));
+                          const isActive = activeSection === secId;
+                          return (
+                            <div
+                              key={secId}
+                              ref={(el) => { sectionRefs.current[secId] = el; }}
+                              className={`p-4 rounded-xl transition-all duration-500 ${
+                                isFlagged
+                                  ? 'bg-pastel-blush border border-pastel-blushBorder shadow-sm'
+                                  : isActive
+                                  ? 'bg-pastel-peach border border-pastel-peachBorder shadow-sm scale-[1.01]'
+                                  : 'hover:bg-gray-50 border border-transparent'
+                              }`}
+                            >
+                              <div className="flex items-center justify-between mb-2 gap-2">
+                                <h4 className="font-semibold text-aria-textMain font-sans text-sm flex-1">{sec.title}</h4>
+                                <div className="flex items-center gap-1 flex-shrink-0">
+                                  {isFlagged && <span className="text-[9px] font-bold text-pastel-blushText bg-pastel-blush border border-pastel-blushBorder px-1.5 py-0.5 rounded-full">FLAGGED</span>}
+                                  {isActive && !isFlagged && <span className="text-[9px] font-bold text-pastel-peachText bg-pastel-peach border border-pastel-peachBorder px-1.5 py-0.5 rounded-full">ACTIVE</span>}
+                                  <span className="text-[9px] font-mono text-aria-textMuted">{secId}</span>
+                                </div>
+                              </div>
+                              <p className={`text-xs leading-relaxed ${
+                                isFlagged ? 'text-pastel-blushText' : isActive ? 'text-pastel-peachText' : 'text-gray-600'
+                              }`}>
+                                {sec.content}
+                              </p>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </>
+                  ) : (
+                    <div className="h-full flex flex-col items-center justify-center gap-4 text-aria-textMuted text-center p-8">
+                      <div className="w-14 h-14 rounded-2xl bg-aria-accentLight flex items-center justify-center">
+                        <FileText className="w-7 h-7 text-aria-accent" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-aria-textMain mb-1">No Document Loaded</p>
+                        <p className="text-xs italic">Select a task and click Run to load regulatory documents.</p>
+                      </div>
+                      <button
+                        onClick={() => setShowTaskModal(true)}
+                        className="mt-2 px-4 py-2 bg-aria-accent text-white rounded-lg text-xs font-bold hover:bg-violet-600 transition"
+                      >
+                        Select Task
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Center: Chart + Log */}
+              <div className="col-span-4 flex flex-col gap-3 min-h-0">
+                {/* Stats row */}
+                <div className="grid grid-cols-3 gap-3 flex-shrink-0">
+                  <div className="matte-panel p-3 bg-white flex flex-col justify-center items-center gap-1 border border-aria-border">
+                    <span className="text-[9px] font-bold text-aria-textMuted uppercase tracking-widest">Reward</span>
+                    <span className={`text-2xl font-light tracking-tighter ${cumulativeReward >= 0 ? 'text-pastel-sageText' : 'text-pastel-blushText'}`}>
+                      {cumulativeReward >= 0 ? '+' : ''}{cumulativeReward.toFixed(2)}
+                    </span>
+                  </div>
+                  <div className="matte-panel p-3 bg-white flex flex-col justify-center items-center gap-1 border border-aria-border">
+                    <span className="text-[9px] font-bold text-aria-textMuted uppercase tracking-widest">Steps</span>
+                    <span className="text-2xl font-light tracking-tighter text-aria-textMain">{totalStepsRun}</span>
+                  </div>
+                  <div className="matte-panel p-3 bg-white flex flex-col justify-center items-center gap-1 border border-aria-border">
+                    <span className="text-[9px] font-bold text-aria-textMuted uppercase tracking-widest">Findings</span>
+                    <span className={`text-2xl font-light tracking-tighter ${findings.length > 0 ? 'text-pastel-blushText' : 'text-aria-textMain'}`}>{findings.length}</span>
                   </div>
                 </div>
 
-                {/* Center: Metrics + Chart + Log */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                  {/* Stats row */}
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+                {/* Phase indicator */}
+                <div className="matte-panel p-3 bg-white flex flex-col gap-2 justify-center border border-aria-border flex-shrink-0">
+                  <span className="text-[9px] font-bold text-aria-textMuted uppercase tracking-widest text-center">Audit Phase</span>
+                  <div className="flex items-center justify-between px-1 gap-1">
                     {[
-                      { label: 'Reward', value: (cumulativeReward >= 0 ? '+' : '') + cumulativeReward.toFixed(2), color: cumulativeReward >= 0 ? '#10B981' : '#EC4899', bg: cumulativeReward >= 0 ? 'linear-gradient(135deg, #D1FAE5, #A7F3D0)' : 'linear-gradient(135deg, #FCE7F3, #FBCFE8)', border: cumulativeReward >= 0 ? '#A7F3D0' : '#F9A8D4', emoji: '📈' },
-                      { label: 'Steps', value: String(totalStepsRun), color: '#8B5CF6', bg: 'linear-gradient(135deg, #EDE9FE, #DDD6FE)', border: '#C4B5FD', emoji: '⚡' },
-                      { label: 'Findings', value: String(findings.length), color: findings.length > 0 ? '#EC4899' : '#9CA3AF', bg: findings.length > 0 ? 'linear-gradient(135deg, #FCE7F3, #FBCFE8)' : '#F9FAFB', border: findings.length > 0 ? '#F9A8D4' : '#E5E7EB', emoji: '🔍' },
-                    ].map((stat, i) => (
-                      <div key={i} style={{ background: stat.bg, borderRadius: 20, border: `1.5px solid ${stat.border}`, padding: '18px 20px', position: 'relative', overflow: 'hidden' }}>
-                        <div style={{ position: 'absolute', top: -10, right: -10, fontSize: 40, opacity: 0.15 }}>{stat.emoji}</div>
-                        <div style={{ fontSize: 10, fontWeight: 800, color: stat.color, textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 6, opacity: 0.8 }}>{stat.label}</div>
-                        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 30, fontWeight: 800, color: stat.color, lineHeight: 1, letterSpacing: '-1px' }}>{stat.value}</div>
+                      { id: 'reading', label: '01 Read' },
+                      { id: 'auditing', label: '02 Audit' },
+                      { id: 'remediating', label: '03 Fix' },
+                      { id: 'complete', label: '04 Done' },
+                    ].map((phase, i) => (
+                      <div key={phase.id} className="flex items-center gap-1 flex-1">
+                        <span className={`text-[10px] font-bold transition-all truncate ${currentPhase === phase.id ? 'text-aria-accent' : 'text-gray-300'}`}>
+                          {phase.label}
+                        </span>
+                        {i < 3 && <div className="flex-1 h-px bg-gray-200 min-w-[4px]" />}
                       </div>
                     ))}
                   </div>
-
-                  {/* Phase indicator */}
-                  <div style={{ background: 'white', borderRadius: 20, border: '1.5px solid rgba(196,181,253,0.3)', padding: '16px 20px', boxShadow: '0 4px 16px rgba(109,40,217,0.04)' }}>
-                    <div style={{ fontSize: 10, fontWeight: 800, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.14em', marginBottom: 14, textAlign: 'center' }}>Audit Phase</div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 0 }}>
-                      {PHASES.map((phase, i) => {
-                        const isActive = currentPhase === phase.id;
-                        const isDone = phaseIdx > i;
-                        return (
-                          <div key={phase.id} style={{ display: 'flex', alignItems: 'center', flex: 1 }}>
-                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
-                              <div style={{
-                                width: 32, height: 32, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                background: isActive ? 'linear-gradient(135deg, #9561F4, #7C3AED)' : isDone ? '#D1FAE5' : '#F3F4F6',
-                                border: isActive ? 'none' : isDone ? '1.5px solid #A7F3D0' : '1.5px solid #E5E7EB',
-                                boxShadow: isActive ? '0 4px 12px rgba(109,40,217,0.3)' : 'none',
-                                transition: 'all 0.3s',
-                              }}>
-                                {isDone ? <CheckCircle2 style={{ width: 16, height: 16, color: '#10B981' }} /> : <span style={{ fontSize: 11, fontWeight: 800, color: isActive ? 'white' : '#9CA3AF' }}>{phase.num}</span>}
-                              </div>
-                              <span style={{ fontSize: 10, fontWeight: 700, color: isActive ? '#8B5CF6' : isDone ? '#10B981' : '#9CA3AF', whiteSpace: 'nowrap' }}>{phase.label}</span>
-                            </div>
-                            {i < PHASES.length - 1 && (
-                              <div style={{ flex: 1, height: 2, background: phaseIdx > i ? '#A7F3D0' : '#F3F4F6', margin: '0 4px', marginBottom: 20, borderRadius: 99, transition: 'background 0.3s' }} />
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  {/* Chart */}
-                  <div style={{ background: 'white', borderRadius: 20, border: '1.5px solid rgba(196,181,253,0.3)', padding: '16px 20px', boxShadow: '0 4px 16px rgba(109,40,217,0.04)' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
-                      <TrendingUp style={{ width: 15, height: 15, color: '#8B5CF6' }} />
-                      <span style={{ fontSize: 11, fontWeight: 800, color: '#5B4E7A', textTransform: 'uppercase', letterSpacing: '0.14em' }}>Performance Curve</span>
-                    </div>
-                    <div style={{ height: 160 }}>
-                      <RewardChart data={chartData} />
-                    </div>
-                  </div>
-
-                  {/* Log */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10, flex: 1, minHeight: 200 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <Activity style={{ width: 14, height: 14, color: '#8B5CF6' }} />
-                      <span style={{ fontSize: 11, fontWeight: 800, color: '#5B4E7A', textTransform: 'uppercase', letterSpacing: '0.14em' }}>Agent Log</span>
-                    </div>
-                    <div style={{
-                      background: '#0F0A1F', borderRadius: 20,
-                      overflowY: 'auto', flex: 1, maxHeight: 220,
-                      padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 8,
-                      boxShadow: '0 8px 32px rgba(0,0,0,0.15)',
-                    }}>
-                      {logs.map((log, index) => (
-                        <div key={index} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', borderBottom: '1px solid rgba(255,255,255,0.04)', paddingBottom: 8 }}>
-                          <div style={{ width: 6, height: 6, borderRadius: '50%', background: log.includes("CRITICAL") ? '#EC4899' : log.includes("[USER OVERRIDE]") ? '#F59E0B' : '#8B5CF6', flexShrink: 0, marginTop: 5, opacity: 0.8 }} />
-                          <p style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, lineHeight: 1.6, color: log.includes("CRITICAL") ? '#FC8989' : log.includes("[USER OVERRIDE]") ? '#FCD34D' : '#A78BFA', margin: 0, fontWeight: 500 }}>{log}</p>
-                        </div>
-                      ))}
-                      <div ref={logEndRef} />
-                    </div>
-
-                    {/* Steer input */}
-                    <form onSubmit={handleSteer} style={{ display: 'flex', gap: 8 }}>
-                      <div style={{ flex: 1, position: 'relative' }}>
-                        <Sparkles style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', width: 14, height: 14, color: '#8B5CF6' }} />
-                        <input
-                          type="text" value={steerText}
-                          onChange={e => setSteerText(e.target.value)}
-                          disabled={steerSending || !isDemoRunning}
-                          placeholder={isDemoRunning ? "Steer the agent..." : "Launch agent to use Copilot"}
-                          style={{
-                            width: '100%', paddingLeft: 36, paddingRight: 14, paddingTop: 10, paddingBottom: 10,
-                            borderRadius: 14, border: '1.5px solid rgba(196,181,253,0.3)',
-                            fontFamily: "'Bricolage Grotesque', sans-serif",
-                            fontSize: 13, fontWeight: 500, color: '#1a0a2e',
-                            background: 'white', outline: 'none', transition: 'border-color 0.2s',
-                          }}
-                          onFocus={e => { (e.target as HTMLElement).style.borderColor = '#8B5CF6'; }}
-                          onBlur={e => { (e.target as HTMLElement).style.borderColor = 'rgba(196,181,253,0.3)'; }}
-                        />
-                      </div>
-                      <button type="submit" disabled={steerSending || !steerText.trim() || !isDemoRunning} style={{
-                        padding: '10px 18px', borderRadius: 14,
-                        background: (!steerText.trim() || !isDemoRunning) ? '#F3F4F6' : 'linear-gradient(135deg, #9561F4, #7C3AED)',
-                        color: (!steerText.trim() || !isDemoRunning) ? '#9CA3AF' : 'white',
-                        border: 'none', cursor: (!steerText.trim() || !isDemoRunning) ? 'not-allowed' : 'pointer',
-                        fontFamily: "'Bricolage Grotesque', sans-serif",
-                        fontSize: 12, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em',
-                        transition: 'all 0.2s',
-                      }}>
-                        {steerSending ? '...' : 'Send'}
-                      </button>
-                    </form>
+                  <div className="h-1 bg-gray-100 rounded-full overflow-hidden">
+                    <div 
+                      className="h-full bg-aria-accent rounded-full transition-all duration-500"
+                      style={{ width: `${currentPhase === 'reading' ? 25 : currentPhase === 'auditing' ? 50 : currentPhase === 'remediating' ? 75 : 100}%` }}
+                    />
                   </div>
                 </div>
 
-                {/* Right: Findings */}
-                <FindingsPanel findings={findings} onViewClause={handleViewClause} />
+                {/* Chart */}
+                <div className="flex flex-col gap-2 flex-shrink-0 overflow-visible z-10 relative bg-white matte-panel p-4 border border-aria-border">
+                  <h2 className="text-[10px] font-bold text-aria-textMuted uppercase tracking-widest pl-1">Performance Curve</h2>
+                  <RewardChart data={chartData} />
+                </div>
+                
+                {/* Log */}
+                <div className="flex flex-col gap-2 flex-1 min-h-[200px]">
+                  <h2 className="text-[10px] font-bold text-aria-textMuted uppercase tracking-widest pl-1 flex-shrink-0">Agent Reasoning Log</h2>
+                  <div className="matte-panel p-4 bg-[#FAFAFD] overflow-y-auto flex flex-col gap-2 flex-1 border border-aria-border">
+                    {logs.map((log, index) => (
+                      <div key={index} className={`flex gap-2 items-start border-b border-aria-border pb-2 ${log.includes("CRITICAL") || log.includes("[USER OVERRIDE]") ? 'text-pastel-blushText font-bold' : ''}`}>
+                        <div className="min-w-5 mt-0.5 flex-shrink-0">
+                          {log.includes("CRITICAL")
+                            ? <Siren className="w-3.5 h-3.5 text-pastel-blushText animate-pulse" />
+                            : log.includes("[USER OVERRIDE]") 
+                            ? <Sparkles className="w-3.5 h-3.5 text-aria-accent" />
+                            : <Activity className="w-3.5 h-3.5 text-aria-accent opacity-60" />
+                          }
+                        </div>
+                        <p className="text-[11px] leading-relaxed">{log}</p>
+                      </div>
+                    ))}
+                    <div ref={logEndRef} />
+                  </div>
+                  
+                  {/* Copilot */}
+                  <form onSubmit={handleSteer} className="flex gap-2 flex-shrink-0 relative">
+                    <div className="absolute left-3 top-1/2 -translate-y-1/2">
+                      <Sparkles className="w-3.5 h-3.5 text-aria-textMuted" />
+                    </div>
+                    <input 
+                      type="text" 
+                      value={steerText}
+                      onChange={(e) => setSteerText(e.target.value)}
+                      disabled={steerSending || !isDemoRunning}
+                      placeholder={isDemoRunning ? "Steer the agent mid-audit..." : "Launch an agent to use Copilot"}
+                      className="flex-1 bg-white border border-aria-border rounded-lg pl-8 pr-3 py-2 text-xs outline-none focus:border-aria-accent transition shadow-sm disabled:bg-gray-50 focus:ring-1 focus:ring-aria-accent/20"
+                    />
+                    <button 
+                      type="submit" 
+                      disabled={steerSending || !steerText.trim() || !isDemoRunning}
+                      className="bg-aria-accent text-white px-3 rounded-lg font-bold text-[10px] uppercase tracking-widest hover:bg-violet-600 disabled:opacity-50 transition"
+                    >
+                      {steerSending ? "..." : "Send"}
+                    </button>
+                  </form>
+                </div>
               </div>
-            )}
 
-            {activeTab === 'replay' && <div style={{ minHeight: '680px' }}><EpisodeViewer replaySteps={replaySteps.length > 0 ? replaySteps : undefined} document={currentDoc || undefined} /></div>}
-            {activeTab === 'leaderboard' && <div style={{ minHeight: '680px' }}><Leaderboard /></div>}
-            {activeTab === 'frameworks' && <div style={{ minHeight: '680px' }}><FrameworkExplorer /></div>}
-            {activeTab === 'api' && <div style={{ minHeight: '680px' }}><APIReference /></div>}
+              {/* Right: Findings Panel - FIX: pass correct findings data */}
+              <FindingsPanel findings={findings} onViewClause={handleViewClause} />
+            </div>
+          )}
 
-          </div>
+          {activeTab === 'replay' && (
+            <div style={{ minHeight: '680px' }}>
+              <EpisodeViewer
+                replaySteps={replaySteps.length > 0 ? replaySteps : undefined}
+                document={currentDoc || undefined}
+              />
+            </div>
+          )}
+
+          {activeTab === 'leaderboard' && (
+            <div style={{ minHeight: '680px' }}>
+              <Leaderboard />
+            </div>
+          )}
+
+          {activeTab === 'frameworks' && (
+            <div style={{ minHeight: '680px' }}>
+              <FrameworkExplorer />
+            </div>
+          )}
+
+          {activeTab === 'api' && (
+            <div style={{ minHeight: '680px' }}>
+              <APIReference />
+            </div>
+          )}
         </div>
       </div>
 
       {/* Modals */}
-      <TaskExplorer show={showTaskModal} onClose={() => setShowTaskModal(false)} onLaunch={handleLaunch} selectedTask={selectedTask} setSelectedTask={setSelectedTask} />
-      <ReportModal show={showReportModal} onClose={() => setShowReportModal(false)} findings={findings} chartData={chartData} currentDoc={currentDoc} selectedTask={selectedTask} replaySteps={replaySteps} />
+      <TaskExplorer
+        show={showTaskModal}
+        onClose={() => setShowTaskModal(false)}
+        onLaunch={handleLaunch}
+        selectedTask={selectedTask}
+        setSelectedTask={setSelectedTask}
+      />
 
-      {/* Incident modal */}
+      <ReportModal
+        show={showReportModal}
+        onClose={() => setShowReportModal(false)}
+        findings={findings}
+        chartData={chartData}
+        currentDoc={currentDoc}
+        selectedTask={selectedTask}
+        replaySteps={replaySteps}
+      />
+
       {activeIncident && (
-        <div style={{
-          position: 'fixed', inset: 0, zIndex: 60,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          background: 'rgba(159, 18, 57, 0.15)', backdropFilter: 'blur(8px)',
-          animation: 'float-in 0.3s ease forwards',
-        }}>
-          <div style={{
-            width: 480, background: 'white', borderRadius: 32,
-            border: '2px solid #FECDD3', padding: '40px',
-            boxShadow: '0 40px 100px rgba(236,72,153,0.2)',
-            position: 'relative',
-          }}>
-            <button onClick={() => setActiveIncident(null)} style={{ position: 'absolute', top: 16, right: 16, width: 32, height: 32, borderRadius: 10, border: '1.5px solid #F3F4F6', background: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9CA3AF' }}>
-              <X style={{ width: 14, height: 14 }} />
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-8 bg-pastel-blushText/20 backdrop-blur-sm animate-in fade-in duration-300">
+          <div className="w-full max-w-lg bg-white border-2 border-pastel-blushText rounded-2xl p-8 shadow-2xl relative">
+            <button
+              onClick={() => setActiveIncident(null)}
+              className="absolute top-4 right-4 p-1.5 rounded-lg hover:bg-gray-100 transition text-gray-400 hover:text-gray-700"
+            >
+              <X className="w-5 h-5" />
             </button>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 24 }}>
-              <div style={{ width: 52, height: 52, borderRadius: 18, background: 'linear-gradient(135deg, #FCE7F3, #FBCFE8)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1.5px solid #F9A8D4' }}>
-                <AlertOctagon style={{ width: 24, height: 24, color: '#EC4899' }} />
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-xl bg-rose-100 flex items-center justify-center">
+                <AlertOctagon className="w-5 h-5 text-pastel-blushText" />
               </div>
               <div>
-                <h2 style={{ fontSize: 20, fontWeight: 800, color: '#BE123C', margin: 0, fontFamily: "'Bricolage Grotesque', sans-serif" }}>DATA BREACH INCIDENT</h2>
-                <p style={{ fontSize: 12, color: '#9CA3AF', margin: '4px 0 0', fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 600 }}>Expert Mode — Live Response Required</p>
+                <h2 className="text-lg font-bold text-pastel-blushText">DATA BREACH INCIDENT</h2>
+                <p className="text-xs text-gray-500">Expert Mode — Live Response Required</p>
               </div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 20 }}>
-              {[
-                { label: 'Incident Type', value: activeIncident.incident_type, bg: '#FFF0F3', border: '#FECDD3', color: '#BE123C' },
-                { label: 'Records Exposed', value: activeIncident.records_affected?.toLocaleString(), bg: '#FFF0F3', border: '#FECDD3', color: '#9F1239' },
-              ].map((item, i) => (
-                <div key={i} style={{ background: item.bg, border: `1.5px solid ${item.border}`, borderRadius: 18, padding: '16px 18px' }}>
-                  <p style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontSize: 10, fontWeight: 800, color: '#EC4899', textTransform: 'uppercase', letterSpacing: '0.12em', margin: '0 0 6px' }}>{item.label}</p>
-                  <p style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontSize: 15, fontWeight: 800, color: item.color, margin: 0 }}>{item.value}</p>
-                </div>
-              ))}
+            <div className="grid grid-cols-2 gap-3 mb-5">
+              <div className="bg-rose-50 border border-rose-200 rounded-xl p-3">
+                <p className="text-[10px] font-bold text-rose-500 uppercase tracking-widest mb-1">Incident Type</p>
+                <p className="text-sm font-semibold text-rose-800">{activeIncident.incident_type}</p>
+              </div>
+              <div className="bg-rose-50 border border-rose-200 rounded-xl p-3">
+                <p className="text-[10px] font-bold text-rose-500 uppercase tracking-widest mb-1">Records Exposed</p>
+                <p className="text-sm font-semibold text-rose-800">{activeIncident.records_affected?.toLocaleString()}</p>
+              </div>
             </div>
 
-            <div style={{ padding: '14px 18px', background: 'linear-gradient(135deg, #FFF0F3, #FFE4E8)', borderRadius: 16, border: '1.5px solid #FECDD3', marginBottom: 20 }}>
-              <p style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: '#9F1239', margin: 0, lineHeight: 1.6 }}>⚡ Agent executing containment protocol — respond within deadline to avoid −0.25/step penalty</p>
+            <div className="p-4 bg-pastel-blush/20 rounded-xl border border-rose-200 text-xs font-mono text-rose-700 mb-5">
+              ⚡ Agent executing containment protocol — respond immediately to minimize deadline penalties.
             </div>
 
-            <button onClick={() => setActiveIncident(null)} style={{
-              width: '100%', padding: '14px', borderRadius: 16,
-              border: '1.5px solid rgba(196,181,253,0.3)', background: 'white',
-              fontFamily: "'Bricolage Grotesque', sans-serif",
-              fontSize: 14, fontWeight: 700, color: '#7C6E9C', cursor: 'pointer',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-              transition: 'all 0.2s',
-            }}>
-              <X style={{ width: 15, height: 15 }} /> Dismiss & Return to Dashboard
+            <button
+              onClick={() => setActiveIncident(null)}
+              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border border-gray-200 hover:bg-gray-50 transition text-sm font-medium text-gray-600"
+            >
+              <X className="w-4 h-4" /> Dismiss & Return to Dashboard
             </button>
           </div>
         </div>
       )}
-    </>
+    </div>
   );
 }
