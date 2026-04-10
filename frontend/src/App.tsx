@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
 import { 
-  FileText, Activity, Sparkles, Settings2, AlertOctagon, Trophy, History, Siren, Download, X
+  FileText, Activity, Sparkles, Settings2, AlertOctagon, Trophy, History, Siren, Download, X,
+  BookOpen, Code2, Zap, Globe, Shield, Database, GitBranch, Terminal, ExternalLink, ChevronDown,
+  BarChart3, Eye, RefreshCw, Info
 } from 'lucide-react';
 
 import RewardChart from './components/RewardChart';
@@ -9,14 +11,18 @@ import TaskExplorer from './components/TaskExplorer';
 import Leaderboard from './components/Leaderboard';
 import EpisodeViewer from './components/EpisodeViewer';
 import ReportModal from './components/ReportModal';
+import FrameworkExplorer from './components/FrameworkExplorer';
+import APIReference from './components/APIReference';
 
 const API_BASE = window.location.origin;
 const WS_PROTOCOL = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
 const WS_URL = `${WS_PROTOCOL}//${window.location.host}/aria/ws`;
 const FIXED_SESSION_ID = "hackathon_demo_001";
 
+type TabType = 'monitor' | 'leaderboard' | 'replay' | 'frameworks' | 'api';
+
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'monitor' | 'leaderboard' | 'replay'>('monitor');
+  const [activeTab, setActiveTab] = useState<TabType>('monitor');
 
   const [isDemoRunning, setIsDemoRunning] = useState(false);
   const [isDemoComplete, setIsDemoComplete] = useState(false);
@@ -35,75 +41,104 @@ export default function App() {
   const [replaySteps, setReplaySteps] = useState<any[]>([]);
   const [steerText, setSteerText] = useState("");
   const [steerSending, setSteerSending] = useState(false);
+  const [wsConnected, setWsConnected] = useState(false);
+  const [totalStepsRun, setTotalStepsRun] = useState(0);
+  const [currentTaskMeta, setCurrentTaskMeta] = useState<any>(null);
 
   const logEndRef = useRef<HTMLDivElement>(null);
   const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const wsRef = useRef<WebSocket | null>(null);
 
   useEffect(() => { logEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [logs]);
 
+  // Fetch task metadata on startup
   useEffect(() => {
-    const socket = new WebSocket(`${WS_URL}/${FIXED_SESSION_ID}`);
-    socket.onopen = () => console.log("✅ WebSocket Linked");
-    
-    const speak = (text: string) => {
-      if ('speechSynthesis' in window) {
-        window.speechSynthesis.cancel(); // kill ongoing speech
-        const msg = new SpeechSynthesisUtterance(text);
-        msg.rate = 1.0;
-        msg.pitch = 0.9;
-        window.speechSynthesis.speak(msg);
-      }
-    };
+    fetch(`${API_BASE}/tasks`)
+      .then(r => r.json())
+      .then(data => setCurrentTaskMeta(data))
+      .catch(() => {});
+  }, []);
 
-    socket.onmessage = (event) => {
-      const data = JSON.parse(event.data);
+  useEffect(() => {
+    const connectWs = () => {
+      const socket = new WebSocket(`${WS_URL}/${FIXED_SESSION_ID}`);
+      wsRef.current = socket;
+
+      socket.onopen = () => {
+        console.log("✅ WebSocket Linked");
+        setWsConnected(true);
+      };
+
+      socket.onclose = () => {
+        setWsConnected(false);
+        // Reconnect after 3s
+        setTimeout(connectWs, 3000);
+      };
       
-      if (data.type === 'step') {
-        setIsDemoRunning(true);
-        const obs = data.observation;
-        setLogs(prev => [data.reward_reason || `Action: ${data.action.action_type}`, ...prev]);
-        setChartData(prev => [...prev, { 
-          step: data.step_number, 
-          reward: data.reward, 
-          cumulative: obs.cumulative_reward 
-        }]);
-        setFindings(obs.active_findings);
-        setCurrentPhase(obs.phase || "reading");
-        setCumulativeReward(obs.cumulative_reward || 0);
-
-        if (data.action.action_type === 'request_section') {
-          setActiveSection(data.action.section_id);
+      const speak = (text: string) => {
+        if ('speechSynthesis' in window) {
+          window.speechSynthesis.cancel();
+          const msg = new SpeechSynthesisUtterance(text);
+          msg.rate = 1.0;
+          msg.pitch = 0.9;
+          window.speechSynthesis.speak(msg);
         }
+      };
+
+      socket.onmessage = (event) => {
+        const data = JSON.parse(event.data);
         
-        if (data.action.action_type === 'identify_gap') {
-           speak(`Auditor has flagged a potential gap: ${data.action.gap_type.replace(/_/g, ' ')}`);
+        if (data.type === 'step') {
+          setIsDemoRunning(true);
+          const obs = data.observation;
+          setLogs(prev => [data.reward_reason || `Action: ${data.action.action_type}`, ...prev.slice(0, 199)]);
+          setChartData(prev => [...prev, { 
+            step: data.step_number, 
+            reward: data.reward, 
+            cumulative: obs.cumulative_reward 
+          }]);
+          setFindings(obs.active_findings);
+          setCurrentPhase(obs.phase || "reading");
+          setCumulativeReward(obs.cumulative_reward || 0);
+          setTotalStepsRun(data.step_number);
+
+          if (data.action.action_type === 'request_section') {
+            setActiveSection(data.action.section_id);
+          }
+          
+          if (data.action.action_type === 'identify_gap') {
+            speak(`Auditor has flagged a potential gap: ${data.action.gap_type?.replace(/_/g, ' ')}`);
+          }
+
+          setReplaySteps(prev => [...prev, {
+            step: data.step_number,
+            action: data.action.action_type + (data.action.clause_ref ? ` (${data.action.clause_ref})` : ''),
+            reward: data.reward,
+            desc: data.reward_reason || `Action: ${data.action.action_type}`,
+            highlight: data.action.action_type === 'request_section' ? data.action.section_id : null,
+            flag: data.action.action_type === 'identify_gap' ? data.action.clause_ref?.split('.')[1] : null,
+            rawJson: data
+          }]);
         }
 
-        setReplaySteps(prev => [...prev, {
-          step: data.step_number,
-          action: data.action.action_type + (data.action.clause_ref ? ` (${data.action.clause_ref})` : ''),
-          reward: data.reward,
-          desc: data.reward_reason || `Action: ${data.action.action_type}`,
-          highlight: data.action.action_type === 'request_section' ? data.action.section_id : null,
-          flag: data.action.action_type === 'identify_gap' ? data.action.clause_ref?.split('.')[1] : null,
-          rawJson: data
-        }]);
-      }
+        if (data.type === 'incident_alert') {
+          speak(`Critical Alert! Breach detected. ${data.message}`);
+          setActiveIncident(data.incident);
+        }
 
-      if (data.type === 'incident_alert') {
-        speak(`Critical Alert! Breach detected. ${data.message}`);
-        setActiveIncident(data.incident);
-      }
-
-      if (data.type === 'episode_complete') {
-        speak("Audit complete. Final grade has been generated.");
-        setIsDemoRunning(false);
-        setIsDemoComplete(true);
-        setLogs(prev => ["🏁 Episode Complete. Final Grade available in Leaderboard.", ...prev]);
-      }
+        if (data.type === 'episode_complete') {
+          speak("Audit complete. Final grade has been generated.");
+          setIsDemoRunning(false);
+          setIsDemoComplete(true);
+          setLogs(prev => ["🏁 Episode Complete. Final Grade available in Leaderboard.", ...prev]);
+        }
+      };
     };
 
-    return () => socket.close();
+    connectWs();
+    return () => {
+      wsRef.current?.close(1000, "Component unmounted");
+    };
   }, []);
 
   const handleLaunch = async () => {
@@ -129,9 +164,13 @@ export default function App() {
       setFindings([]);
       setCurrentPhase("reading");
       setCumulativeReward(0);
+      setTotalStepsRun(0);
       setSteerText("");
       setLogs(prev => ["Environment Ready. Waiting for Agent actions...", ...prev]);
       setShowTaskModal(false);
+
+      // Auto-start internal agent
+      await fetch(`${API_BASE}/aria/demo/start/${selectedTask}`, { method: 'POST' });
     } catch (err) {
       setLogs(prev => ["❌ Connection Error: Ensure backend is running at :7860", ...prev]);
       setIsDemoRunning(false);
@@ -165,60 +204,101 @@ export default function App() {
     setSteerSending(false);
   };
 
-  // Download button is enabled once we have findings or the episode is complete
   const canDownload = findings.length > 0 || isDemoComplete || replaySteps.length > 0;
 
+  const TASK_DIFFICULTY_COLOR: Record<string, string> = {
+    easy: 'text-emerald-600 bg-emerald-50 border-emerald-200',
+    medium: 'text-amber-600 bg-amber-50 border-amber-200',
+    hard: 'text-orange-600 bg-orange-50 border-orange-200',
+    expert: 'text-rose-600 bg-rose-50 border-rose-200',
+    blind: 'text-purple-600 bg-purple-50 border-purple-200',
+    custom: 'text-blue-600 bg-blue-50 border-blue-200',
+  };
+
+  const navItems: { id: TabType; label: string; icon: any }[] = [
+    { id: 'monitor', label: 'Live Monitor', icon: Activity },
+    { id: 'replay', label: 'Replay', icon: History },
+    { id: 'leaderboard', label: 'Leaderboard', icon: Trophy },
+    { id: 'frameworks', label: 'Frameworks', icon: Shield },
+    { id: 'api', label: 'API Reference', icon: Code2 },
+  ];
+
   return (
-    <div className={`min-h-screen p-6 flex flex-col transition-colors duration-500 ${activeIncident ? 'bg-pastel-blush' : 'bg-aria-bg'}`}>
-      <div className={`w-full max-w-7xl mx-auto flex flex-col flex-1 matte-panel p-6 transition-all duration-500 ${showTaskModal || activeIncident ? 'scale-[0.98] blur-[2px] opacity-60' : ''}`}>
+    <div className={`min-h-screen p-4 flex flex-col transition-colors duration-500 ${activeIncident ? 'bg-pastel-blush' : 'bg-aria-bg'}`}>
+      <div className={`w-full max-w-[1600px] mx-auto flex flex-col flex-1 matte-panel p-5 transition-all duration-500 ${showTaskModal || activeIncident ? 'scale-[0.98] blur-[2px] opacity-60' : ''}`}>
         
         {/* Header */}
-        <header className="flex justify-between items-center mb-6 pb-4 border-b border-aria-border relative flex-shrink-0">
-          <h1 className="text-3xl font-light tracking-wide flex items-center gap-3 text-aria-textMain">
-            <div className="w-8 h-8 rounded-lg bg-aria-accent flex items-center justify-center shadow-premium">
+        <header className="flex justify-between items-center mb-5 pb-4 border-b border-aria-border relative flex-shrink-0 gap-4">
+          {/* Logo */}
+          <div className="flex items-center gap-3 min-w-fit">
+            <div className="w-9 h-9 rounded-xl bg-aria-accent flex items-center justify-center shadow-premium">
               <Activity className="text-white w-5 h-5" />
             </div>
-            <span className="font-semibold tracking-tight">ARIA</span>
-          </h1>
+            <div>
+              <h1 className="text-xl font-bold tracking-tight text-aria-textMain leading-none">ARIA</h1>
+              <p className="text-[10px] text-aria-textMuted font-medium tracking-widest uppercase leading-none mt-0.5">Regulatory Intelligence</p>
+            </div>
+          </div>
 
-          <nav className="flex gap-8 text-sm font-bold text-aria-textMuted uppercase tracking-widest absolute left-1/2 -translate-x-1/2">
-            <button onClick={() => setActiveTab('monitor')} className={`pb-2 transition-all flex items-center gap-2 ${activeTab === 'monitor' ? 'text-aria-accent border-b-2 border-aria-accent' : 'hover:text-aria-textMain'}`}>
-              <Activity className="w-4 h-4" /> Live Monitor
-            </button>
-            <button onClick={() => setActiveTab('replay')} className={`pb-2 transition-all flex items-center gap-2 ${activeTab === 'replay' ? 'text-aria-accent border-b-2 border-aria-accent' : 'hover:text-aria-textMain'}`}>
-              <History className="w-4 h-4" /> Replay
-            </button>
-            <button onClick={() => setActiveTab('leaderboard')} className={`pb-2 transition-all flex items-center gap-2 ${activeTab === 'leaderboard' ? 'text-aria-accent border-b-2 border-aria-accent' : 'hover:text-aria-textMain'}`}>
-              <Trophy className="w-4 h-4" /> Leaderboard
-            </button>
+          {/* Nav */}
+          <nav className="flex gap-1 text-xs font-bold text-aria-textMuted uppercase tracking-widest absolute left-1/2 -translate-x-1/2">
+            {navItems.map(({ id, label, icon: Icon }) => (
+              <button
+                key={id}
+                onClick={() => setActiveTab(id)}
+                className={`pb-1.5 pt-1.5 px-3 transition-all flex items-center gap-1.5 rounded-lg ${
+                  activeTab === id 
+                    ? 'text-aria-accent bg-aria-accentLight' 
+                    : 'hover:text-aria-textMain hover:bg-gray-100'
+                }`}
+              >
+                <Icon className="w-3.5 h-3.5" /> {label}
+              </button>
+            ))}
           </nav>
 
-          <div className="flex items-center gap-3 text-sm font-bold text-aria-textMuted uppercase tracking-widest min-w-[300px] justify-end">
-            {/* Download Report button — appears when there's data */}
+          {/* Right controls */}
+          <div className="flex items-center gap-2 text-sm font-bold text-aria-textMuted min-w-fit">
+            {/* WS status */}
+            <div className={`flex items-center gap-1.5 px-2 py-1 rounded-full text-[10px] font-bold border ${wsConnected ? 'text-emerald-700 bg-emerald-50 border-emerald-200' : 'text-gray-500 bg-gray-100 border-gray-200'}`}>
+              <div className={`w-1.5 h-1.5 rounded-full ${wsConnected ? 'bg-emerald-500 animate-pulse' : 'bg-gray-400'}`} />
+              {wsConnected ? 'LIVE' : 'OFFLINE'}
+            </div>
+
+            {/* Task badge */}
+            <div className={`px-2 py-1 rounded-full text-[10px] font-bold border ${TASK_DIFFICULTY_COLOR[selectedTask] || 'text-gray-500 bg-gray-100 border-gray-200'}`}>
+              {selectedTask.toUpperCase()}
+            </div>
+
+            {/* Download */}
             <button
               onClick={() => setShowReportModal(true)}
               disabled={!canDownload}
               title={canDownload ? 'Download audit report as PDF' : 'Run an episode first'}
-              className="flex items-center gap-2 px-3 py-2 rounded-lg border border-aria-border hover:bg-gray-50 transition text-aria-textMain disabled:opacity-30 disabled:cursor-not-allowed"
+              className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-aria-border hover:bg-gray-50 transition text-aria-textMain disabled:opacity-30 disabled:cursor-not-allowed text-xs"
             >
-              <Download className="w-4 h-4" />
-              <span className="text-xs">Report</span>
+              <Download className="w-3.5 h-3.5" />
+              Report
             </button>
 
             <button
               onClick={() => setShowTaskModal(true)}
               disabled={isDemoRunning}
-              className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-100 transition text-aria-textMain disabled:opacity-50"
+              className="flex items-center gap-1.5 px-3 py-2 rounded-lg hover:bg-gray-100 transition text-aria-textMain disabled:opacity-50 text-xs"
             >
-              <Settings2 className="w-4 h-4" /> Select Task
+              <Settings2 className="w-3.5 h-3.5" /> Task
             </button>
 
             <button
               onClick={handleLaunch}
               disabled={isDemoRunning}
-              className="flex items-center gap-2 bg-aria-accent text-white px-5 py-2.5 rounded-lg hover:bg-violet-600 transition shadow-premium disabled:opacity-50"
+              className="flex items-center gap-2 bg-aria-accent text-white px-4 py-2 rounded-lg hover:bg-violet-600 transition shadow-premium disabled:opacity-50 text-xs font-bold uppercase tracking-wider"
             >
-              <Sparkles className="w-4 h-4" /> {isDemoRunning ? 'Running...' : 'Launch'}
+              {isDemoRunning ? (
+                <><RefreshCw className="w-3.5 h-3.5 animate-spin" /> Running...</>
+              ) : (
+                <><Sparkles className="w-3.5 h-3.5" /> Launch</>
+              )}
             </button>
           </div>
         </header>
@@ -227,22 +307,32 @@ export default function App() {
 
           {/* LIVE MONITOR VIEW */}
           {activeTab === 'monitor' && (
-            <div className="grid grid-cols-12 gap-6" style={{ minHeight: '680px' }}>
+            <div className="grid grid-cols-12 gap-4" style={{ minHeight: '680px' }}>
               
               {/* Left: Document Viewer */}
               <div className="col-span-4 flex flex-col gap-3 min-h-0">
-                <div className="flex items-center gap-2 pl-1 flex-shrink-0">
-                  <FileText className="w-4 h-4 text-aria-textMuted" />
-                  <h2 className="text-xs font-bold text-aria-textMuted uppercase tracking-widest">Active Document</h2>
+                <div className="flex items-center justify-between pl-1 flex-shrink-0">
+                  <div className="flex items-center gap-2">
+                    <FileText className="w-4 h-4 text-aria-textMuted" />
+                    <h2 className="text-xs font-bold text-aria-textMuted uppercase tracking-widest">Active Document</h2>
+                  </div>
+                  {currentDoc && (
+                    <span className="text-[10px] font-mono text-aria-textMuted bg-gray-100 px-2 py-0.5 rounded">{currentDoc.doc_id}</span>
+                  )}
                 </div>
-                <div className="matte-panel p-6 bg-white overflow-y-auto" style={{ height: '640px' }}>
+                <div className="matte-panel p-5 bg-white overflow-y-auto flex-1" style={{ height: '640px' }}>
                   {currentDoc ? (
                     <>
-                      <div className="border-b border-aria-border pb-4 mb-6">
-                        <h3 className="text-lg font-bold text-aria-textMain">{currentDoc.title}</h3>
-                        <p className="text-xs font-mono text-aria-textMuted mt-1">ID: {currentDoc.doc_id}</p>
+                      <div className="border-b border-aria-border pb-4 mb-5">
+                        <h3 className="text-base font-bold text-aria-textMain">{currentDoc.title}</h3>
+                        <div className="flex items-center gap-2 mt-2 flex-wrap">
+                          <span className="text-[10px] font-mono text-aria-textMuted">ID: {currentDoc.doc_id}</span>
+                          <span className="text-[10px] font-bold text-aria-accent bg-aria-accentLight px-2 py-0.5 rounded-full">
+                            {currentDoc.sections?.length} sections
+                          </span>
+                        </div>
                       </div>
-                      <div className="flex flex-col gap-4 font-serif">
+                      <div className="flex flex-col gap-3 font-serif">
                         {currentDoc.sections.map((sec: any) => {
                           const isFlagged = findings.some(f => f.clause_ref?.includes(sec.section_id));
                           const isActive = activeSection === sec.section_id;
@@ -254,12 +344,19 @@ export default function App() {
                                 isFlagged
                                   ? 'bg-pastel-blush border border-pastel-blushBorder shadow-sm'
                                   : isActive
-                                  ? 'bg-pastel-peach border border-pastel-peachBorder shadow-sm scale-[1.02]'
+                                  ? 'bg-pastel-peach border border-pastel-peachBorder shadow-sm scale-[1.01]'
                                   : 'hover:bg-gray-50 border border-transparent'
                               }`}
                             >
-                              <h4 className="font-semibold text-aria-textMain mb-2 font-sans text-sm">{sec.title}</h4>
-                              <p className={`text-sm leading-relaxed ${
+                              <div className="flex items-center justify-between mb-2 gap-2">
+                                <h4 className="font-semibold text-aria-textMain font-sans text-sm flex-1">{sec.title}</h4>
+                                <div className="flex items-center gap-1 flex-shrink-0">
+                                  {isFlagged && <span className="text-[9px] font-bold text-pastel-blushText bg-pastel-blush border border-pastel-blushBorder px-1.5 py-0.5 rounded-full">FLAGGED</span>}
+                                  {isActive && !isFlagged && <span className="text-[9px] font-bold text-pastel-peachText bg-pastel-peach border border-pastel-peachBorder px-1.5 py-0.5 rounded-full">ACTIVE</span>}
+                                  <span className="text-[9px] font-mono text-aria-textMuted">{sec.section_id}</span>
+                                </div>
+                              </div>
+                              <p className={`text-xs leading-relaxed ${
                                 isFlagged ? 'text-pastel-blushText' : isActive ? 'text-pastel-peachText' : 'text-gray-600'
                               }`}>
                                 {sec.content}
@@ -270,62 +367,102 @@ export default function App() {
                       </div>
                     </>
                   ) : (
-                    <div className="h-full flex items-center justify-center text-aria-textMuted italic text-sm text-center p-8">
-                      Select a task and click Launch to load regulatory documents into context.
+                    <div className="h-full flex flex-col items-center justify-center gap-4 text-aria-textMuted text-center p-8">
+                      <div className="w-14 h-14 rounded-2xl bg-aria-accentLight flex items-center justify-center">
+                        <FileText className="w-7 h-7 text-aria-accent" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-aria-textMain mb-1">No Document Loaded</p>
+                        <p className="text-xs italic">Select a task and click Launch to load regulatory documents into context.</p>
+                      </div>
+                      <button
+                        onClick={() => setShowTaskModal(true)}
+                        className="mt-2 px-4 py-2 bg-aria-accent text-white rounded-lg text-xs font-bold hover:bg-violet-600 transition"
+                      >
+                        Select Task
+                      </button>
                     </div>
                   )}
                 </div>
               </div>
 
               {/* Center: Chart + Log */}
-              <div className="col-span-4 flex flex-col gap-4 min-h-0">
-                <div className="grid grid-cols-2 gap-4 flex-shrink-0">
-                  <div className="matte-panel p-4 bg-white flex flex-col justify-center items-center gap-1 border border-aria-border">
-                    <span className="text-[10px] font-bold text-aria-textMuted uppercase tracking-widest">Cumulative Reward</span>
-                    <span className={`text-3xl font-light tracking-tighter ${cumulativeReward >= 0 ? 'text-pastel-sageText' : 'text-pastel-blushText'}`}>
+              <div className="col-span-4 flex flex-col gap-3 min-h-0">
+                {/* Stats row */}
+                <div className="grid grid-cols-3 gap-3 flex-shrink-0">
+                  <div className="matte-panel p-3 bg-white flex flex-col justify-center items-center gap-1 border border-aria-border">
+                    <span className="text-[9px] font-bold text-aria-textMuted uppercase tracking-widest">Cumulative Reward</span>
+                    <span className={`text-2xl font-light tracking-tighter ${cumulativeReward >= 0 ? 'text-pastel-sageText' : 'text-pastel-blushText'}`}>
                       {cumulativeReward >= 0 ? '+' : ''}{cumulativeReward.toFixed(2)}
                     </span>
                   </div>
-                  <div className="matte-panel p-4 bg-white flex flex-col gap-2 justify-center border border-aria-border">
-                    <span className="text-[10px] font-bold text-aria-textMuted uppercase tracking-widest text-center">Audit Phase</span>
-                    <div className="flex justify-between items-center px-2">
-                       <span className={`text-xs font-bold transition-all ${currentPhase === 'reading' ? 'text-aria-accent scale-110' : 'text-gray-300'}`}>01 Read</span>
-                       <div className="flex-1 h-0.5 max-w-[20px] mx-2 bg-gray-200" />
-                       <span className={`text-xs font-bold transition-all ${currentPhase === 'auditing' ? 'text-aria-accent scale-110' : 'text-gray-300'}`}>02 Audit</span>
-                       <div className="flex-1 h-0.5 max-w-[20px] mx-2 bg-gray-200" />
-                       <span className={`text-xs font-bold transition-all ${currentPhase === 'remediating' || currentPhase === 'complete' ? 'text-aria-accent scale-110' : 'text-gray-300'}`}>03 Fix</span>
-                    </div>
+                  <div className="matte-panel p-3 bg-white flex flex-col justify-center items-center gap-1 border border-aria-border">
+                    <span className="text-[9px] font-bold text-aria-textMuted uppercase tracking-widest">Steps</span>
+                    <span className="text-2xl font-light tracking-tighter text-aria-textMain">{totalStepsRun}</span>
+                  </div>
+                  <div className="matte-panel p-3 bg-white flex flex-col justify-center items-center gap-1 border border-aria-border">
+                    <span className="text-[9px] font-bold text-aria-textMuted uppercase tracking-widest">Findings</span>
+                    <span className={`text-2xl font-light tracking-tighter ${findings.length > 0 ? 'text-pastel-blushText' : 'text-aria-textMain'}`}>{findings.length}</span>
                   </div>
                 </div>
 
-                <div className="flex flex-col gap-3 flex-shrink-0 overflow-visible z-10 relative bg-white matte-panel p-4 border border-aria-border">
-                  <h2 className="text-xs font-bold text-aria-textMuted uppercase tracking-widest pl-1">Performance Curve</h2>
+                {/* Phase indicator */}
+                <div className="matte-panel p-3 bg-white flex flex-col gap-2 justify-center border border-aria-border flex-shrink-0">
+                  <span className="text-[9px] font-bold text-aria-textMuted uppercase tracking-widest text-center">Audit Phase</span>
+                  <div className="flex items-center justify-between px-1 gap-1">
+                    {[
+                      { id: 'reading', label: '01 Read' },
+                      { id: 'auditing', label: '02 Audit' },
+                      { id: 'remediating', label: '03 Fix' },
+                      { id: 'complete', label: '04 Done' },
+                    ].map((phase, i) => (
+                      <div key={phase.id} className="flex items-center gap-1 flex-1">
+                        <span className={`text-[10px] font-bold transition-all truncate ${currentPhase === phase.id ? 'text-aria-accent' : 'text-gray-300'}`}>
+                          {phase.label}
+                        </span>
+                        {i < 3 && <div className="flex-1 h-px bg-gray-200 min-w-[4px]" />}
+                      </div>
+                    ))}
+                  </div>
+                  {/* Progress bar */}
+                  <div className="h-1 bg-gray-100 rounded-full overflow-hidden">
+                    <div 
+                      className="h-full bg-aria-accent rounded-full transition-all duration-500"
+                      style={{ width: `${currentPhase === 'reading' ? 25 : currentPhase === 'auditing' ? 50 : currentPhase === 'remediating' ? 75 : 100}%` }}
+                    />
+                  </div>
+                </div>
+
+                {/* Chart */}
+                <div className="flex flex-col gap-2 flex-shrink-0 overflow-visible z-10 relative bg-white matte-panel p-4 border border-aria-border">
+                  <h2 className="text-[10px] font-bold text-aria-textMuted uppercase tracking-widest pl-1">Performance Curve</h2>
                   <RewardChart data={chartData} />
                 </div>
                 
-                <div className="flex flex-col gap-3 flex-1 min-h-[250px]">
-                  <h2 className="text-xs font-bold text-aria-textMuted uppercase tracking-widest pl-1 flex-shrink-0">Agent Reasoning Log</h2>
-                  <div className="matte-panel p-5 bg-[#FAFAFD] overflow-y-auto flex flex-col gap-3 h-full border border-aria-border mb-2">
+                {/* Log */}
+                <div className="flex flex-col gap-2 flex-1 min-h-[200px]">
+                  <h2 className="text-[10px] font-bold text-aria-textMuted uppercase tracking-widest pl-1 flex-shrink-0">Agent Reasoning Log</h2>
+                  <div className="matte-panel p-4 bg-[#FAFAFD] overflow-y-auto flex flex-col gap-2 flex-1 border border-aria-border">
                     {logs.map((log, index) => (
-                      <div key={index} className={`flex gap-3 items-start border-b border-aria-border pb-3 ${log.includes("CRITICAL") || log.includes("[USER OVERRIDE]") ? 'text-pastel-blushText font-bold' : ''}`}>
-                        <div className="min-w-6 mt-0.5 flex-shrink-0">
+                      <div key={index} className={`flex gap-2 items-start border-b border-aria-border pb-2 ${log.includes("CRITICAL") || log.includes("[USER OVERRIDE]") ? 'text-pastel-blushText font-bold' : ''}`}>
+                        <div className="min-w-5 mt-0.5 flex-shrink-0">
                           {log.includes("CRITICAL")
-                            ? <Siren className="w-4 h-4 text-pastel-blushText animate-pulse" />
+                            ? <Siren className="w-3.5 h-3.5 text-pastel-blushText animate-pulse" />
                             : log.includes("[USER OVERRIDE]") 
-                            ? <Sparkles className="w-4 h-4 text-aria-accent" />
-                            : <Activity className="w-4 h-4 text-aria-accent" />
+                            ? <Sparkles className="w-3.5 h-3.5 text-aria-accent" />
+                            : <Activity className="w-3.5 h-3.5 text-aria-accent opacity-60" />
                           }
                         </div>
-                        <p className="text-xs leading-relaxed">{log}</p>
+                        <p className="text-[11px] leading-relaxed">{log}</p>
                       </div>
                     ))}
                     <div ref={logEndRef} />
                   </div>
                   
-                  {/* Copilot Interface */}
+                  {/* Copilot */}
                   <form onSubmit={handleSteer} className="flex gap-2 flex-shrink-0 relative">
                     <div className="absolute left-3 top-1/2 -translate-y-1/2">
-                      <Sparkles className="w-4 h-4 text-aria-textMuted" />
+                      <Sparkles className="w-3.5 h-3.5 text-aria-textMuted" />
                     </div>
                     <input 
                       type="text" 
@@ -333,12 +470,12 @@ export default function App() {
                       onChange={(e) => setSteerText(e.target.value)}
                       disabled={steerSending || !isDemoRunning}
                       placeholder={isDemoRunning ? "Steer the agent mid-audit..." : "Launch an agent to use Copilot"}
-                      className="flex-1 bg-white border border-aria-border rounded-lg pl-9 pr-4 py-2.5 text-sm outline-none focus:border-aria-accent transition shadow-sm disabled:bg-gray-50 focus:ring-1 focus:ring-aria-accent/20"
+                      className="flex-1 bg-white border border-aria-border rounded-lg pl-8 pr-3 py-2 text-xs outline-none focus:border-aria-accent transition shadow-sm disabled:bg-gray-50 focus:ring-1 focus:ring-aria-accent/20"
                     />
                     <button 
                       type="submit" 
                       disabled={steerSending || !steerText.trim() || !isDemoRunning}
-                      className="bg-aria-accent text-white px-4 rounded-lg font-bold text-xs uppercase tracking-widest hover:bg-violet-600 disabled:opacity-50 transition"
+                      className="bg-aria-accent text-white px-3 rounded-lg font-bold text-[10px] uppercase tracking-widest hover:bg-violet-600 disabled:opacity-50 transition"
                     >
                       {steerSending ? "..." : "Send"}
                     </button>
@@ -363,6 +500,18 @@ export default function App() {
           {activeTab === 'leaderboard' && (
             <div style={{ minHeight: '680px' }}>
               <Leaderboard />
+            </div>
+          )}
+
+          {activeTab === 'frameworks' && (
+            <div style={{ minHeight: '680px' }}>
+              <FrameworkExplorer />
+            </div>
+          )}
+
+          {activeTab === 'api' && (
+            <div style={{ minHeight: '680px' }}>
+              <APIReference />
             </div>
           )}
         </div>
@@ -390,28 +539,41 @@ export default function App() {
       {activeIncident && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-8 bg-pastel-blushText/20 backdrop-blur-sm animate-in fade-in duration-300">
           <div className="w-full max-w-lg bg-white border-2 border-pastel-blushText rounded-2xl p-8 shadow-2xl relative">
-            {/* Close button */}
             <button
               onClick={() => setActiveIncident(null)}
               className="absolute top-4 right-4 p-1.5 rounded-lg hover:bg-gray-100 transition text-gray-400 hover:text-gray-700"
-              title="Dismiss and return to dashboard"
             >
               <X className="w-5 h-5" />
             </button>
 
-            <h2 className="text-xl font-bold text-pastel-blushText flex items-center gap-2">
-              <AlertOctagon className="w-6 h-6" /> DATA BREACH INCIDENT
-            </h2>
-            <p className="mt-4 text-sm text-gray-600">Incident Type: {activeIncident.incident_type}</p>
-            <p className="mt-2 text-sm text-gray-600">Records Impacted: {activeIncident.records_affected}</p>
-            <div className="mt-6 p-4 bg-pastel-blush/20 rounded-lg text-xs font-mono">
-              Agent executing containment protocol...
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-xl bg-rose-100 flex items-center justify-center">
+                <AlertOctagon className="w-5 h-5 text-pastel-blushText" />
+              </div>
+              <div>
+                <h2 className="text-lg font-bold text-pastel-blushText">DATA BREACH INCIDENT</h2>
+                <p className="text-xs text-gray-500">Expert Mode — Live Response Required</p>
+              </div>
             </div>
 
-            {/* Dismiss button */}
+            <div className="grid grid-cols-2 gap-3 mb-5">
+              <div className="bg-rose-50 border border-rose-200 rounded-xl p-3">
+                <p className="text-[10px] font-bold text-rose-500 uppercase tracking-widest mb-1">Incident Type</p>
+                <p className="text-sm font-semibold text-rose-800">{activeIncident.incident_type}</p>
+              </div>
+              <div className="bg-rose-50 border border-rose-200 rounded-xl p-3">
+                <p className="text-[10px] font-bold text-rose-500 uppercase tracking-widest mb-1">Records Exposed</p>
+                <p className="text-sm font-semibold text-rose-800">{activeIncident.records_affected?.toLocaleString()}</p>
+              </div>
+            </div>
+
+            <div className="p-4 bg-pastel-blush/20 rounded-xl border border-rose-200 text-xs font-mono text-rose-700 mb-5">
+              ⚡ Agent executing containment protocol — respond immediately to minimize deadline penalties.
+            </div>
+
             <button
               onClick={() => setActiveIncident(null)}
-              className="mt-6 w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border border-gray-200 hover:bg-gray-50 transition text-sm font-medium text-gray-600"
+              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border border-gray-200 hover:bg-gray-50 transition text-sm font-medium text-gray-600"
             >
               <X className="w-4 h-4" /> Dismiss & Return to Dashboard
             </button>

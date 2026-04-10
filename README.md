@@ -11,7 +11,7 @@ pinned: false
 
 <br/>
 
-<img src="frontend/public/favicon.svg" width="64" height="64" alt="ARIA Logo" />
+<img src="frontend/public/favicon.svg" width="72" height="72" alt="ARIA Logo" />
 
 <br/>
 
@@ -29,10 +29,11 @@ pinned: false
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688?style=flat-square&logo=fastapi)](https://fastapi.tiangolo.com)
 [![React 19](https://img.shields.io/badge/React-19-61DAFB?style=flat-square&logo=react&logoColor=black)](https://react.dev)
 [![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?style=flat-square&logo=docker&logoColor=white)](https://docker.com)
+[![Tests](https://img.shields.io/badge/Tests-Passing-22C55E?style=flat-square)](tests/)
 
 <br/>
 
-[**→ Open Live Dashboard**](https://huggingface.co/spaces/muskankhushi/aria-compliance-v1) &nbsp;·&nbsp; [**Quick Start**](#-quick-start) &nbsp;·&nbsp; [**Action Space**](#-action--observation-space) &nbsp;·&nbsp; [**Baseline Results**](#-baseline-results) &nbsp;·&nbsp; [**Architecture**](#-architecture)
+[**→ Open Live Dashboard**](https://huggingface.co/spaces/muskankhushi/aria-compliance-v1) &nbsp;·&nbsp; [**Quick Start**](#-quick-start) &nbsp;·&nbsp; [**Action Space**](#-action--observation-space) &nbsp;·&nbsp; [**Baseline Results**](#-baseline-results) &nbsp;·&nbsp; [**Architecture**](#-architecture) &nbsp;·&nbsp; [**Gradio UI**](#-gradio-evaluation-interface)
 
 </div>
 
@@ -66,19 +67,53 @@ General-purpose LLMs and RAG pipelines fall short of the actual audit workflow. 
 
 </div>
 
-Watch an agent conduct a real-time compliance audit end-to-end. The React dashboard:
+Watch an agent conduct a real-time compliance audit end-to-end. The React dashboard delivers a complete live visualization experience:
 
-- **Streams document sections** as the agent reads them, highlighting active and flagged clauses
-- **Renders findings** with framework-specific severity badges and evidence citations
-- **Plots a live reward curve** with Audit Phase tracking (Read → Audit → Remediate)
-- **Streams the full reasoning trace** via WebSocket in real time
-- **Expert mode**: fires a red ⚠ **BREACH ALERT** mid-audit with a live countdown to the 72-hour GDPR notification deadline
-- **Episode Replay**: full step-by-step scrubber with state JSON at every step
-- **Leaderboard**: multi-agent score comparison across all difficulty tiers
-- **PDF Report**: downloadable compliance audit report with findings, severity breakdown, and agent action log
+| Feature | Description |
+|:---|:---|
+| **Live Document Viewer** | Streams sections as the agent reads them, highlighting active (🟡) and flagged (🔴) clauses in real-time |
+| **Findings Panel** | Live compliance findings with framework badges, gap types, evidence status, and clause navigation |
+| **Performance Curve** | Recharts live reward curve with per-step coloring (purple = reward, red = penalty) + cumulative teal line |
+| **Phase Tracker** | Real-time audit phase progression: Read → Audit → Remediate → Complete |
+| **Agent Reasoning Log** | Full reasoning stream via WebSocket with incident alerts and user override indicators |
+| **Copilot Interface** | Mid-audit agent steering: inject natural language overrides to redirect the agent's focus |
+| **Episode Replay** | Full step-by-step scrubber with state JSON at every step and document section syncing |
+| **Leaderboard** | Multi-agent comparison across difficulty tiers with precision/recall scatter and radar charts |
+| **Framework Explorer** | Interactive guide to GDPR, HIPAA, CCPA, SOC 2 articles, gap types, and conflict matrix |
+| **API Reference** | Full REST + WebSocket documentation built into the dashboard |
+| **PDF Report** | Downloadable compliance audit report with findings, severity breakdown, and agent action log |
+| **Expert Mode** | Fires a red ⚠ **BREACH ALERT** mid-audit at step 25 with live countdown to 72-hour GDPR deadline |
 
 > [!IMPORTANT]
 > Visit the Space URL once to wake the instance before running the evaluator.
+
+---
+
+## Gradio Evaluation Interface
+
+In addition to the main React dashboard, ARIA ships a **Gradio-based evaluation UI** (`gradio_app.py`) that provides an accessible interface for running the baseline evaluation pipeline interactively.
+
+### Features
+
+- **Single Task Evaluation** — Run any individual task tier and observe `[START]/[STEP]/[END]` output
+- **Full Baseline Run** — Execute all 5 tasks in sequence with aggregate score reporting
+- **Cached Score Viewer** — Inspect the most recent `baseline_results.json` at a glance
+- **Environment Status** — Real-time check of task files, API endpoints, and Python environment
+- **About Panel** — Complete project documentation and architecture reference
+
+### Running the Gradio Interface
+
+```bash
+# Start just the Gradio UI (requires the FastAPI server running separately)
+python gradio_app.py
+
+# Or run everything together via Docker
+docker run -p 7860:7860 aria-compliance
+# The Gradio UI is available at http://localhost:7860/gradio
+```
+
+> [!NOTE]
+> The Gradio interface uses a `ThreadPoolExecutor` to run evaluation subprocesses, preventing the browser "Page Unresponsive" hang that occurs when long-running operations block the event loop.
 
 ---
 
@@ -161,7 +196,7 @@ ARIA encodes four production regulatory frameworks in `aria/frameworks.py`:
 
 ## Action & Observation Space
 
-For a complete breakdown of all actions, see the [**Action Space Guide**](ACTION_SPACE.md).
+For a complete breakdown of all actions, see the [**Action Space Guide**](ACTION_SPACE.md). The built-in dashboard also includes a full **API Reference** tab.
 
 ### Action Space
 
@@ -238,6 +273,7 @@ Additional penalty mechanisms applied before final clamping to `[0, 1]`:
 ```
 aria-env/
 ├── inference.py              # Mandatory baseline — [START]/[STEP]/[END] stdout
+├── gradio_app.py             # Gradio UI — interactive evaluation interface
 ├── openenv.yaml              # OpenEnv manifest
 ├── Dockerfile                # Multi-stage: Node.js build → Python serve
 │
@@ -273,13 +309,15 @@ aria-env/
 ├── frontend/                 # React 19 + TypeScript + Vite + Tailwind
 │   └── src/
 │       ├── components/
-│       │   ├── FindingsPanel.tsx   # Active findings with evidence status
-│       │   ├── RewardChart.tsx     # Live reward curve (Recharts)
-│       │   ├── TaskExplorer.tsx    # Task selection with upload mode
-│       │   ├── Leaderboard.tsx     # Multi-agent leaderboard with charts
-│       │   ├── EpisodeViewer.tsx   # Full episode replay with scrubber
-│       │   └── ReportModal.tsx     # PDF-printable compliance audit report
-│       └── types/aria.types.ts     # TypeScript mirrors of Pydantic models
+│       │   ├── FindingsPanel.tsx    # Active findings with evidence status
+│       │   ├── RewardChart.tsx      # Live reward curve (Recharts)
+│       │   ├── TaskExplorer.tsx     # Task selection with upload mode
+│       │   ├── Leaderboard.tsx      # Multi-agent leaderboard with charts
+│       │   ├── EpisodeViewer.tsx    # Full episode replay with scrubber
+│       │   ├── ReportModal.tsx      # PDF-printable compliance audit report
+│       │   ├── FrameworkExplorer.tsx # Interactive GDPR/HIPAA/CCPA/SOC2 guide
+│       │   └── APIReference.tsx     # Built-in REST + WebSocket documentation
+│       └── types/aria.types.ts      # TypeScript mirrors of Pydantic models
 │
 └── tests/
     ├── test_environment.py   # reset/step/state contract tests
@@ -329,7 +367,7 @@ export API_KEY="your_api_key"           # judges' proxy (priority)
 export API_BASE_URL="https://router.huggingface.co/v1/"
 export MODEL_NAME="Qwen/Qwen2.5-7B-Instruct"
 
-# 4. Run
+# 4. Run inference (judge format)
 python inference.py
 # Emits [START]/[STEP]/[END] for all 5 tasks, saves baseline_results.json
 ```
@@ -337,10 +375,14 @@ python inference.py
 ### Local Development
 
 ```bash
-# Start the API + React dashboard
-uvicorn server.app:app --host 0.0.0.0 --port 7860
+# Start the FastAPI server + React dashboard
+uvicorn server.app:app --host 0.0.0.0 --port 7860 --reload
 
-# Open http://localhost:7860
+# In a separate terminal: start Gradio UI (optional)
+python gradio_app.py
+
+# Open http://localhost:7860 for React dashboard
+# Open http://localhost:7860/gradio for Gradio UI (if running separately)
 ```
 
 ### Docker
