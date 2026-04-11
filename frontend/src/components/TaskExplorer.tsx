@@ -123,7 +123,7 @@ export default function TaskExplorer({ show, onClose, onLaunch, selectedTask, se
         {/* Task grid */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14, padding: '24px', background: '#FAF7FF', overflowY: 'auto', flex: 1 }}>
           {taskTiers.map(tier => {
-            const Icon = tier.icon;
+            // const Icon = tier.icon;
             const isSelected = selectedTask === tier.id;
             return (
               <div key={tier.id} onClick={() => { setSelectedTask(tier.id); setUploadSuccess(false); }} style={{

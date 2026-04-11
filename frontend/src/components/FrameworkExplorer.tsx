@@ -94,7 +94,7 @@ export default function FrameworkExplorer() {
       {/* Framework selector */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 14 }}>
         {FRAMEWORKS.map(fw => {
-          const Icon = fw.icon;
+          // const Icon = fw.icon;
           const isSelected = selectedFw.id === fw.id && !showConflicts;
           return (
             <button key={fw.id} onClick={() => { setSelectedFw(fw); setShowConflicts(false); }} style={{

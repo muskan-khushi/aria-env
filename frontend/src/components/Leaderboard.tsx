@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Trophy, TrendingUp, Target, Zap, Star, Medal } from 'lucide-react';
+import { Trophy, TrendingUp, Target, Zap, Medal } from 'lucide-react';
 import {
   ResponsiveContainer, BarChart, Bar, ScatterChart, Scatter,
   XAxis, YAxis, CartesianGrid, Tooltip, Cell, RadarChart,

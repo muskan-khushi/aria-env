@@ -46,14 +46,12 @@ const SCORE_COMPONENTS = [
 export default function LandingPage({ onEnterDashboard }: LandingPageProps) {
   const [hoveredTask, setHoveredTask] = useState<string | null>(null);
   const [animateIn, setAnimateIn] = useState(false);
-  const [scrollY, setScrollY] = useState(0);
+ 
   const heroRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setTimeout(() => setAnimateIn(true), 80);
-    const handleScroll = () => setScrollY(window.scrollY);
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => window.removeEventListener('scroll', handleScroll);
+    
   }, []);
 
   const handleNavClick = (e: React.MouseEvent<HTMLAnchorElement>, id: string) => {
