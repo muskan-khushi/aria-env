@@ -1,29 +1,29 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700;9..40,800&family=DM+Mono:wght@400;500&display=swap');
 @import "tailwindcss";
 
 @theme {
-  /* The Violet Matte Palette */
-  --color-aria-bg: #F5F3FA; 
-  --color-aria-surface: #FFFFFF; 
-  --color-aria-border: #E4DDF4; 
-  --color-aria-textMain: #2E1A47; 
-  --color-aria-textMuted: #6B5B81; 
-  --color-aria-accent: #6D28D9; 
-  --color-aria-accentLight: #EDE9FE; 
+  /* Core palette */
+  --color-aria-bg: #F8F7FF;
+  --color-aria-surface: #FFFFFF;
+  --color-aria-border: #E9E7F5;
+  --color-aria-textMain: #1C1033;
+  --color-aria-textMuted: #6B7280;
+  --color-aria-accent: #5B21B6;
+  --color-aria-accentLight: #EDE9FE;
 
-  /* The New Editorial Pastels */
-  --color-pastel-blush: #FFF0F3; /* Soft error background */
-  --color-pastel-blushBorder: #FFE4E8;
-  --color-pastel-blushText: #881337; /* Deep rose text */
-  
-  --color-pastel-peach: #FFF8EE; /* Soft warning background */
-  --color-pastel-peachBorder: #FFEED4;
-  --color-pastel-peachText: #78350F; /* Deep amber text */
+  /* Status pastels */
+  --color-pastel-blush: #FFF5F5;
+  --color-pastel-blushBorder: #FECDD3;
+  --color-pastel-blushText: #BE123C;
 
-  --color-pastel-sage: #F0FDF4; /* Soft success background */
-  --color-pastel-sageText: #14532D; /* Deep emerald text */
+  --color-pastel-peach: #FFFBF0;
+  --color-pastel-peachBorder: #FDE68A;
+  --color-pastel-peachText: #78350F;
 
-  /* Expensive, diffused drop shadow */
-  --shadow-premium: 0 12px 40px -12px rgba(109, 40, 217, 0.12);
+  --color-pastel-sage: #F0FDF4;
+  --color-pastel-sageText: #065F46;
+
+  --shadow-premium: 0 8px 32px -8px rgba(92, 33, 182, 0.10);
 }
 
 @layer utilities {
@@ -32,32 +32,37 @@
   }
 }
 
+/* Global reset */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
 body {
   background-color: var(--color-aria-bg);
   color: var(--color-aria-textMain);
-  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
+  font-weight: 400;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-/* --- PREMIUM SCROLLBARS --- */
+/* Scrollbars */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
 }
-
 ::-webkit-scrollbar-track {
   background: transparent;
 }
-
 ::-webkit-scrollbar-thumb {
-  background: var(--color-aria-border);
-  border-radius: 10px;
+  background: #E9E7F5;
+  border-radius: 99px;
 }
-
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--color-aria-textMuted);
-}
-
-/* Ensure smooth scrolling globally */
-html {
-  scroll-behavior: smooth;
+  background: #C4B5FD;
 }

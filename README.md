@@ -34,9 +34,9 @@ pinned: false
 <br/>
 
 ```
- Easy: 0.734 ✅  │  Medium: 0.625 ✅  │  Hard: 0.627 ✅  │  Expert: 0.628 ✅
+ Easy: 0.734 ✅  │  Medium: 0.625 ✅  │  Hard: 0.627 ✅  │  Expert: 0.628 ✅  │  Blind: 0.356
 ```
-*Baseline outperforms GPT-4o target on Hard and Expert tiers*
+*Baseline outperforms GPT-4o target on Hard and Expert tiers. Known tasks avg: **0.654**.*
 
 <br/>
 
@@ -90,18 +90,17 @@ Watch an AI agent conduct a real-time compliance audit end-to-end. The React 19 
 
 | Feature | Description |
 |:--------|:------------|
-| **Live Landing Page** | Professional about page — task tiers, framework matrix, reward architecture overview |
-| **Live Document Viewer** | Sections stream in as the agent reads, with real-time flagging (🔴 = gap found) |
-| **Findings Panel** | Live compliance findings with gap type, severity badge, evidence status, clause navigation |
-| **Performance Curve** | Recharts reward curve — purple = reward, red = penalty, teal = cumulative |
+| **Live Document Viewer** | Sections stream in as the agent reads, with real-time flagging |
+| **Findings Panel** | Live compliance findings with gap type, severity badge, evidence status |
+| **Performance Curve** | Reward curve — step rewards and cumulative score |
 | **Phase Tracker** | Read → Audit → Remediate → Complete with progress bar |
-| **Agent Copilot** | Mid-audit steering — inject natural language overrides to redirect the agent |
+| **Agent Copilot** | Mid-audit steering — inject overrides to redirect the agent |
 | **Episode Replay** | Full step-by-step scrubber with state JSON at every step |
 | **Leaderboard** | Multi-agent comparison with precision/recall scatter and radar charts |
 | **Framework Explorer** | Interactive GDPR/HIPAA/CCPA/SOC2 article guide with conflict matrix |
 | **API Reference** | Built-in REST + WebSocket documentation |
 | **PDF Report** | Downloadable audit report with findings, severity breakdown, action log |
-| **Expert Breach Mode** | Red ⚠ BREACH ALERT fires mid-audit at step 25 with live countdown |
+| **Expert Breach Mode** | BREACH ALERT fires mid-audit at step 25 with live countdown |
 
 ---
 
@@ -110,7 +109,6 @@ Watch an AI agent conduct a real-time compliance audit end-to-end. The React 19 
 ```
 aria-env/
 ├── inference.py              ← Judge baseline: [START]/[STEP]/[END] stdout
-├── gradio_app.py             ← Interactive Gradio evaluation UI (port 7861)
 ├── openenv.yaml              ← OpenEnv manifest (validated)
 ├── Dockerfile                ← Multi-stage: Node.js build → Python serve
 │
@@ -146,7 +144,7 @@ aria-env/
 ├── frontend/                 ← React 19 + TypeScript + Vite + Tailwind
 │   └── src/
 │       ├── components/
-│       │   ├── LandingPage.tsx      ← Professional about/home page
+│       │   ├── LandingPage.tsx      ← Home / about page
 │       │   ├── FindingsPanel.tsx    ← Live findings with evidence status
 │       │   ├── RewardChart.tsx      ← Recharts reward curve
 │       │   ├── TaskExplorer.tsx     ← Task selection + upload mode
@@ -195,19 +193,11 @@ python inference.py
 # FastAPI server + React dashboard (port 7860)
 uvicorn server.app:app --host 0.0.0.0 --port 7860 --reload
 
-# Gradio evaluation UI (port 7861, separate — non-blocking)
-python gradio_app.py
-
 # Frontend dev server (proxies API to 7860)
 cd frontend && npm install && npm run dev
 
 # Open http://localhost:7860 for React dashboard
-# Open http://localhost:7861 for Gradio UI
 ```
-
-> **Note:** Gradio runs on port 7861 to avoid conflicting with the FastAPI server on 7860.
-> Both can run simultaneously. The Gradio UI uses a `ThreadPoolExecutor` to run
-> inference subprocesses without blocking the event loop.
 
 ### Docker
 
@@ -244,25 +234,23 @@ pytest tests/ -v
 
 ### What Makes This Hard
 
-**Cross-Framework Conflicts:** An agent must detect that GDPR's 72-hour notification window and HIPAA's 60-day window are incompatible for dual-jurisdiction breaches, then escalate with a description explaining the resolution. Simply knowing both frameworks isn't enough.
+**Cross-Framework Conflicts:** An agent must detect that GDPR's 72-hour notification window and HIPAA's 60-day window are incompatible for dual-jurisdiction breaches, then escalate with a description explaining the resolution.
 
-**Adversarial Red Herrings:** The corpus includes compliant-looking clauses designed to trap imprecise agents. A clause using Standard Contractual Clauses with Transfer Impact Assessments must **not** be flagged — only agents that understand *why* it's compliant will avoid false positives.
+**Adversarial Red Herrings:** The corpus includes compliant-looking clauses designed to trap imprecise agents. A clause using Standard Contractual Clauses with Transfer Impact Assessments must **not** be flagged.
 
 **Expert Tier:** At step 25, a 85,000-record data breach fires. The agent must simultaneously advance the audit and execute: `contain_breach → document_incident → engage_dpo → notify_supervisory_authority → notify_data_subjects` within 8 steps. Miss the 72-hour GDPR window and incur −0.25/step.
 
-**Blind Task:** All policy language is paraphrased. "Device and analytics data is retained indefinitely" becomes "Personal usage logs and behavioral profiles are kept without a defined end date." No heuristic trigger phrases match. LLM reasoning from first principles required.
+**Blind Task:** All policy language is paraphrased. No heuristic trigger phrases match. LLM reasoning from first principles required.
 
 ---
 
 ## Regulatory Frameworks
 
-ARIA encodes four production-grade regulatory frameworks in `aria/frameworks.py`:
-
 | Framework | Jurisdiction | Max Penalty | Key Requirements |
 |:----------|:-------------|:-----------|:----------------|
-| **GDPR** | EU / EEA | €20M or 4% global turnover | 72h breach notification, right to erasure, DPO designation, SCCs for transfers, purpose limitation |
-| **HIPAA** | United States (healthcare) | $1.9M per violation | PHI safeguards, BAA with all BAs, minimum necessary standard, 6-year audit log retention |
-| **CCPA/CPRA** | California, USA | $7,500 per intentional violation | "Do Not Sell" link on homepage, 45-day response, sensitive data limits (1798.121) |
+| **GDPR** | EU / EEA | €20M or 4% global turnover | 72h breach notification, right to erasure, DPO designation, SCCs for transfers |
+| **HIPAA** | United States (healthcare) | $1.9M per violation | PHI safeguards, BAA with all BAs, minimum necessary, 6-year audit log retention |
+| **CCPA/CPRA** | California, USA | $7,500 per intentional violation | "Do Not Sell" link on homepage, 45-day response, sensitive data limits |
 | **SOC 2 Type II** | Global (SaaS/cloud) | Loss of certification | Availability SLA accuracy, CC7 IRP testing, confidentiality controls |
 
 ---
@@ -272,8 +260,6 @@ ARIA encodes four production-grade regulatory frameworks in `aria/frameworks.py`
 > Full documentation: [ACTION_SPACE.md](ACTION_SPACE.md) and the built-in API Reference tab in the dashboard.
 
 ### Action Space
-
-Every action is a typed JSON object conforming to `ARIAAction` (Pydantic v2):
 
 | Action | Required Fields | Step Reward |
 |:-------|:----------------|:-----------:|
@@ -286,51 +272,11 @@ Every action is a typed JSON object conforming to `ARIAAction` (Pydantic v2):
 | `flag_false_positive` | `retract_finding_id` | `+0.05` correct retraction / `−0.08` wrong |
 | `submit_final_report` | *(none)* | Triggers terminal grader |
 
-**Severity bonus:** `+0.05` when `severity` matches ground truth exactly.
-
-**Valid `gap_type` values:**
-```
-data_retention  consent_mechanism  breach_notification  data_subject_rights
-cross_border_transfer  data_minimization  purpose_limitation  dpo_requirement
-phi_safeguard  baa_requirement  opt_out_mechanism  audit_log_requirement
-availability_control
-```
-
-### Observation Space
-
-`ARIAObservation` (Pydantic v2) — complete information state at every step:
-
-```python
-class ARIAObservation(BaseModel):
-    session_id: str
-    task_id: str
-    task_description: str
-    regulatory_context: RegulatoryContext   # frameworks + applicable articles
-    documents: list[Document]               # full document corpus
-    visible_sections: list[str]             # sections the agent has read
-    active_findings: list[Finding]          # live compliance findings
-    retracted_findings: list[Finding]       # retracted (self-corrected) findings
-    submitted_remediations: list[Remediation]
-    last_action: ActionType | None
-    last_action_result: ActionResult        # ACCEPTED | REJECTED | DUPLICATE
-    last_reward: float
-    last_reward_reason: str                 # human-readable reward signal
-    cumulative_reward: float
-    steps_taken: int
-    steps_remaining: int
-    done: bool
-    phase: Literal["reading","auditing","remediating","complete"]
-    evidence_citations: list[EvidenceCitation]
-    active_incident: Incident | None        # Expert tier only
-    incident_timeline: list[IncidentEvent]
-    incident_deadline_steps: int | None
-```
-
 ---
 
 ## Grader Design
 
-The terminal grader produces a deterministic `[0.0, 1.0]` score. **Identical inputs always yield identical output** — critical for reproducibility.
+The terminal grader produces a deterministic `[0.0, 1.0]` score.
 
 | Component | Weight | Metric |
 |:----------|:------:|:-------|
@@ -344,43 +290,45 @@ The terminal grader produces a deterministic `[0.0, 1.0]` score. **Identical inp
 
 | Attack Vector | Countermeasure |
 |:-------------|:---------------|
-| Spam every gap type on every clause | Global FP budget: 5th+ FP costs −0.20 (cannot be gamed by spacing 6 steps apart) |
+| Spam every gap type on every clause | Global FP budget: 5th+ FP costs −0.20 |
 | Paste entire section as evidence | Verbosity cap: passage > 70% of section → text match capped at 0.08 |
-| Flag everything, selectively retract | Retracting a true finding costs −0.08; correct retraction earns only +0.05 |
+| Flag everything, selectively retract | Retracting a true finding costs −0.08 |
 | Submit generic remediation | 0 keyword coverage → 0 remediation score |
-| Empty conflict description | Description quality = 40% of conflict score via `score_conflict_description()` |
+| Empty conflict description | Description quality = 40% of conflict score |
 | Quit early for efficiency bonus | Bonus = `tp/max_steps` (rewards coverage density, not early termination) |
 | Shotgun >2.5× ground truth gaps | Additional −0.05 penalty applied at grader |
-
-### Evidence Validation (Anti Copy-Paste)
-
-The `EvidenceChainValidator` extracts a **±300-character windowed excerpt** around the most relevant keyword at the cited location. Agents submitting the full section content score ≤8% on text match.
-
-Scoring: Location found (0.20) + windowed fuzzy match (0.20) + keyword relevance (0.30) + violation signal (0.30).
 
 ---
 
 ## Baseline Results
 
-All scores are reproducible from `inference.py` using `seed=42`. Wall clock time: **< 17 seconds**.
+All scores reproducible from `inference.py` using `seed=42`.
 
-| Task | Score | F1 | Precision | Recall | Steps | GPT-4o Target | Status |
-|:-----|:-----:|:--:|:---------:|:------:|:-----:|:-------------:|:------:|
-| **Easy** | **0.734** | 1.000 | 1.000 | 1.000 | 14 | 0.94 | ✅ Pass |
-| **Medium** | **0.625** | 0.800 | 0.800 | 0.800 | 24 | 0.71 | ✅ Pass |
-| **Hard** | **0.627** | 0.750 | 0.750 | 0.750 | 36 | 0.52 | ✅ **Beat target** |
-| **Expert** | **0.628** | 0.778 | 0.875 | 0.700 | 50 | 0.33 | ✅ **Beat target** |
-| **Blind** | ~0.36 | 0.286 | 1.000 | 0.167 | 14 | — | ⚠ By design |
-| **Known Avg** | **0.654** | **0.832** | | | | 0.63 | |
+| Task | Score | F1 | Precision | Recall | Steps | Success |
+|:-----|:-----:|:--:|:---------:|:------:|:-----:|:-------:|
+| **Easy** | **0.734** | 1.000 | 1.000 | 1.000 | 14 | ✅ |
+| **Medium** | **0.625** | 0.800 | 0.800 | 0.800 | 24 | ✅ |
+| **Hard** | **0.627** | 0.750 | 0.750 | 0.750 | 36 | ✅ |
+| **Expert** | **0.628** | 0.778 | 0.875 | 0.700 | 50 | ✅ |
+| **Blind** | **0.356** | 0.286 | 1.000 | 0.167 | 13 | ❌ (by design) |
+| **Known Avg** | **0.654** | — | — | — | — | — |
+
+Model: `Qwen/Qwen2.5-7B-Instruct` · Agent: `MultiPassAgent v8` · Seed: `42`
 
 **ARIA's baseline outperforms the GPT-4o target on Hard and Expert tiers.**
 
-### Reproducibility
+### Score Breakdown (Easy task)
 
-- **Heuristic-primary:** Task-tuned trigger-phrase maps find all ground-truth gaps deterministically at zero API cost.
-- **LLM-assisted:** Fallback fires only after heuristics are exhausted (~1 call/task, returns `submit_final_report`).
-- **Stable scores:** No variance across runs regardless of LLM temperature.
-- **Proxy-compliant:** `inference.py` uses `API_KEY` and `API_BASE_URL` from environment and makes a warmup call to satisfy judge proxy requirements.
+```json
+{
+  "gap_f1": 0.40,
+  "evidence": 0.1192,
+  "remediation": 0.0444,
+  "severity": 0.10,
+  "conflict": 0.05,
+  "efficiency": 0.02
+}
+```
 
 ---
 
@@ -388,28 +336,26 @@ All scores are reproducible from `inference.py` using `seed=42`. Wall clock time
 
 | Requirement | Status | Notes |
 |:------------|:------:|:------|
-| Typed Pydantic v2 models | ✅ | `ARIAObservation`, `ARIAAction`, `ARIAReward` throughout |
+| Typed Pydantic v2 models | ✅ | `ARIAObservation`, `ARIAAction`, `ARIAReward` |
 | `POST /reset` | ✅ | Returns `ARIAObservation`; accepts `task_name` + `seed` |
 | `POST /step` | ✅ | Returns `(observation, reward, done, info)` |
 | `GET /state` | ✅ | Current observation without advancing episode |
 | `GET /tasks` | ✅ | All tasks with metadata + full `ARIAAction` JSON Schema |
 | `POST /grader` | ✅ | Deterministic 5-component score breakdown |
-| `POST /baseline` | ✅ | Returns cached results; triggers run if absent |
+| `POST /baseline` | ✅ | Returns cached results |
 | `openenv.yaml` manifest | ✅ | All required fields present |
 | Dockerfile | ✅ | Multi-stage build; serves on port 7860 |
-| `inference.py` at root | ✅ | `[START]/[STEP]/[END]` stdout format; all 5 tasks + blind |
-| Scores in `[0.0, 1.0]` | ✅ | Enforced by `min(1.0, max(0.0, raw_score))` |
+| `inference.py` at root | ✅ | `[START]/[STEP]/[END]` stdout format; all 5 tasks |
+| Scores in `[0.0, 1.0]` | ✅ | Enforced by clamp |
 | Deterministic grader | ✅ | Identical inputs → identical output |
 | HF Space deploys | ✅ | Tagged `openenv`, returns 200 on health check |
 | 3+ tasks with graders | ✅ | 5 tasks (easy/medium/hard/expert/blind) |
 | Meaningful reward | ✅ | Dense, 18 triggers, anti-gaming v2 |
-| Baseline script works | ✅ | Completes < 17 seconds with cached heuristics |
+| Baseline script works | ✅ | Completes < 17 seconds |
 
 ---
 
 ## Inference Script Output Format
-
-`inference.py` emits exactly three line types:
 
 ```
 [START] task=<task_name> env=aria-compliance-v1 model=<MODEL_NAME>
@@ -417,59 +363,17 @@ All scores are reproducible from `inference.py` using `seed=42`. Wall clock time
 [END]   success=<true|false> steps=<n> score=<0.00> rewards=<r1,r2,...,rn>
 ```
 
-Example output for the easy task:
-```
-[START] task=easy env=aria-compliance-v1 model=Qwen/Qwen2.5-7B-Instruct
-[STEP] step=1 action={"action_type":"request_section","document_id":"privacy_policy","section_id":"s1"} reward=0.01 done=false error=null
-[STEP] step=2 action={"action_type":"identify_gap","clause_ref":"privacy_policy.s2","gap_type":"data_retention","severity":"high",...} reward=0.25 done=false error=null
-...
-[END] success=true steps=14 score=0.73 rewards=0.01,0.25,...
-```
-
----
-
-## Agent Architecture
-
-The `MultiPassAgent v8` partitions the step budget into five sequential phases:
-
-```
- 0 – 25%   READ        request_section (task-aware cap: easy=5, medium=12, hard=18, expert=24)
-25 – 65%   AUDIT       identify_gap (heuristic trigger → cite_evidence immediately)
-65 – 85%   REMEDIATE   submit_remediation for EVERY finding
-85 – 95%   CONFLICTS   escalate_conflict for ALL known framework pairs
-95 – 100%  FINALISE    cite remaining → submit_final_report
-```
-
-**Expert override:** `respond_to_incident` fires whenever `obs.active_incident` is present, taking absolute priority over all phase logic.
-
-**LLM fallback:** Activates only after heuristics are exhausted. Used for:
-- Blind task: paraphrased language requires genuine regulatory reasoning
-- Unknown documents: custom uploads with no heuristic matches
-
 ---
 
 ## Environment Variables
 
 | Variable | Required | Default | Description |
 |:---------|:--------:|:--------|:------------|
-| `API_KEY` | ✅ | — | Judges' LiteLLM proxy key (priority over all others) |
-| `HF_TOKEN` | — | — | HuggingFace token (fallback if `API_KEY` not set) |
-| `MODEL_NAME` | ✅ | `Qwen/Qwen2.5-7B-Instruct` | Model identifier for OpenAI-compatible endpoint |
+| `API_KEY` | ✅ | — | Judges' LiteLLM proxy key (priority) |
+| `HF_TOKEN` | — | — | HuggingFace token (fallback) |
+| `MODEL_NAME` | ✅ | `Qwen/Qwen2.5-7B-Instruct` | Model identifier |
 | `API_BASE_URL` | ✅ | `https://router.huggingface.co/v1/` | OpenAI-compatible endpoint URL |
 | `PORT` | — | `7860` | FastAPI server port |
-| `GRADIO_PORT` | — | `7861` | Gradio UI port (separate from FastAPI) |
-
----
-
-## Port Configuration
-
-| Service | Port | How to Run |
-|:--------|:----:|:-----------|
-| FastAPI + React Dashboard | **7860** | `uvicorn server.app:app --port 7860` |
-| Gradio Evaluation UI | **7861** | `python gradio_app.py` |
-| WebSocket | **7860** | `/aria/ws/{session_id}` |
-
-Both services run simultaneously without conflict. The Gradio UI runs all evaluation subprocesses in a `ThreadPoolExecutor` — the browser never becomes unresponsive.
 
 ---
 
@@ -494,12 +398,6 @@ Both services run simultaneously without conflict. The Gradio UI runs all evalua
 
 React 19 · TypeScript · FastAPI · Python 3.11 · Pydantic v2 · Docker · Hugging Face
 
-<br/>
-
 *Compliance auditing is a $35B market. ARIA is the training ground for the agents that will transform it.*
-
-<br/>
-
-⭐ Star this repo if ARIA helps you train better compliance agents!
 
 </div>
